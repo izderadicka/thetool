@@ -1,0 +1,18 @@
+<ui>
+	<popup name="popup">
+		<menuitem action="about_action"/>
+		<separator />
+		<menuitem action="monitor_action"/>
+		<menu name="power_menu" action="power_menu_action"/>
+		<menu action="power_off_type_action">
+			<menuitem action="shutdown"/>
+			<menuitem action="suspend"/>
+			<menuitem action="hibernate"/>
+		</menu>
+		<menuitem action="cancel_power_off_action"/>
+		<separator />
+		<menuitem action="settings_action"/>
+		<separator />
+		<menuitem action="quit_action"/>
+	</popup>
+</ui>
