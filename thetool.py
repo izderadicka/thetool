@@ -11,19 +11,16 @@ import os.path
 import optparse
 import logging
 log=logging.getLogger("TheTool")
-import types
 import time
 import math
-import gi.types
 from gi.repository import Gtk, GdkPixbuf, GObject, Gio, GLib, Gdk, Notify
 
 import utils
 import gdbus
+from config_ui import Settings,UiHelper, SettingsDialog, SETTINGS_ID
 _curr_dir=os.path.split(__file__)[0]
 
 class TheTool(object):
-    
-    SETTINGS_ID='eu.zderadicka.TheTool'
     UI_FILES=[]
     STATUS_IDLE, STATUS_POWER_OFF_TIMER= "Idle", "Will Power Off"
     NAME="TheTool"
@@ -41,6 +38,12 @@ class TheTool(object):
         self._build_menus()
         self.ui=UiHelper(self)
         self._cancel_power_off()
+        self._start_nm()
+        self._devel_start()
+    
+    
+    def _devel_start(self):
+        self.on_settings_action_activate(None)
         
     def set_tooltip(self, status, message=None): 
         tt=self.NAME+" - %s" 
@@ -111,7 +114,18 @@ class TheTool(object):
         action3.connect('activate', self.on_power_type_activated, "hibernate")
         self.power_type_actions=pt
         
-        
+    def _start_nm(self):
+        if self.settings.get_unpacked('monitor-networks'):
+            self.nm=gdbus.NetworkManager()
+            self.nm.add_listener('PropertiesChanged', self.on_network_changed)
+        else:
+            if hasattr(self,'nm') and self.nm:
+                try:
+                    self.nm.remove_listener('PropertiesChanged', self.on_network_changed)    
+                except:
+                    log.exception('Cannot remove NM listener')
+                self.nm.disconnect()
+            self.nm=None
     def main(self):
         Gtk.main()
         Notify.uninit()
@@ -136,7 +150,7 @@ class TheTool(object):
         
         
     def _init_settings(self):
-        self.settings=Settings(TheTool.SETTINGS_ID, '/eu/zderadicka/thetool/')
+        self.settings=Settings(SETTINGS_ID, '/eu/zderadicka/thetool/')
         self.settings.connect("changed", self.on_settings_changed)
         
     def set_icon(self):
@@ -166,7 +180,7 @@ Linux desktop rocks! (most of the time:)""")
         d.hide()
     def on_settings_action_activate(self, action):
         log.debug('Showing Settings')
-        dialog=SettingsDialog(self.settings, self.power_type_actions)
+        dialog=SettingsDialog(self.settings, self.power_type_actions, self.nm)
         dialog.run()
         dialog.destroy()
     def on_monitor_action_activate(self, action):
@@ -189,6 +203,8 @@ Linux desktop rocks! (most of the time:)""")
             self._build_po_menu()
         if key.startswith("icon-size-"):
             self.set_icon()
+        if key=="monitor-networks":
+            self._start_nm()
             
             
     def start_power_off(self, mins):
@@ -262,119 +278,11 @@ Linux desktop rocks! (most of the time:)""")
         notification.set_image_from_pixbuf(self.icon_normal)
         notification.show()
         
-        
+    def on_network_changed(self, props):
+        if props.has_key('ActiveConnections'):
+            net=self.nm.get_default_connection_info()
+            log.debug('Def. Network changed to: %s',  net)
 
-class SettingsDialog(Gtk.Dialog):
-    UI_FILES=['settings.ui']
-    UI_ROOT='settings'
-    def __init__(self, settings, power_actions):
-        self.power_actions=power_actions
-        self.dirty=set()
-        self.pending_update_id=None
-        self.settings=settings
-        Gtk.Dialog.__init__(self, "Settings", None, Gtk.DialogFlags.MODAL, (Gtk.STOCK_CLOSE,Gtk.ResponseType.CLOSE))
-        self.ui=UiHelper(self)
-        self.get_content_area().add(self.ui.get_widget(self.UI_ROOT))
-        self._connect_widgets()
-        
-    def _connect_widgets(self): 
-        self.settings.bind('enable-notifications', self.ui.get_widget('enable-notifications'), 'active', 
-                      Gio.SettingsBindFlags.DEFAULT)
-        self.settings.bind('icon-size-width', self.ui.get_widget('icon_width'), 'value', 
-                       Gio.SettingsBindFlags.DEFAULT)
-        
-        self.settings.bind('icon-size-height', self.ui.get_widget('icon_height'), 'value', 
-                       Gio.SettingsBindFlags.DEFAULT)
-        self.settings.bind('notify-before-poweroff', self.ui.get_widget('notify-before-poweroff'), 'value',
-                           Gio.SettingsBindFlags.DEFAULT)
-        self.settings.bind('default-poweroff-timeout', self.ui.get_widget('default-poweroff-timeout'), 'value',
-                           Gio.SettingsBindFlags.DEFAULT)
-        
-        self.ui.get_widget("power-off-intervals").set_text(utils.list_to_string(self.settings.get_unpacked('poweroff-intervals')))
-        self.ui.get_widget("power-off-intervals").connect('changed', self.on_power_off_intervals_changed)
-        wnames=('shutdown', 'suspend', 'hibernate')
-        for name in wnames:
-            if self.power_actions.get_action(name).get_active():
-                self.ui.get_widget(name).set_active(True)
-        for name in wnames:
-            self.ui.get_widget(name).connect('toggled', self.on_poweroff_type_activate, name)
-            
-    def on_poweroff_type_activate(self, item, name):
-        if item.get_active():
-            log.debug("Power Off radio selected  %s", name)
-            self.power_actions.get_action(name).set_active(True)
-    def on_power_off_intervals_changed(self, item):
-        log.debug("Power Intervals changed  to %s", item.get_text())
-        self._plan_update("power-off-intervals")
-    def _plan_update(self, item):
-        self.dirty.add(item)
-        if self.pending_update_id:
-            GLib.source_remove(self.pending_update_id)
-        self.pending_update_id=GLib.timeout_add(2000, self.do_update)    
-    def do_update(self):
-        for name in self.dirty:
-            log.debug('Syncing data to %s settings', name)
-            wgt=self.ui.get_widget(name)
-            if name=="power-off-intervals":
-               
-                try:
-                    list=utils.string_to_list(wgt.get_text()) 
-                except Exception, e:
-                    log.debug("invalid value of list %s", e)
-                    wgt.override_color(Gtk.StateFlags.NORMAL, Gdk.RGBA(1.0, 0.0, 0.0, 1.0) ) 
-                else:
-                    wgt.override_color(Gtk.StateFlags.NORMAL, None)
-                    self.settings.set_formatted('poweroff-intervals', 'ai', list) 
-        self.dirty.clear()
-        self.pending_update_id=None
-        return False
-
-        
-
-class UiHelper():
-    def __init__(self, for_object):
-        self.ui = Gtk.Builder()
-        for f in for_object.UI_FILES:
-            self.ui.add_from_file(os.path.join(_curr_dir, 'ui', f))
-        self.ui.connect_signals(for_object)
-    def get_widget(self, name):
-        return self.ui.get_object(name)
-    
-    
-class Settings(Gio.Settings):
-    
-    def __new__(cls, schema_id,path=None):
-        log.debug('Creating instance for settings')
-        schema_source=Gio.SettingsSchemaSource.new_from_directory(_curr_dir, 
-            Gio.SettingsSchemaSource.get_default(), False)
-        schema=Gio.SettingsSchemaSource.lookup(schema_source, schema_id,False)
-        if not schema:
-            raise Exception("Cannot get GSettings  schema")
-        instance= Gio.Settings.new_full(schema, None, path)
-        #inject methods from this class
-        
-        for m in cls.__dict__:
-            
-            if type(getattr(cls,m)) is types.MethodType and not m.startswith('__') :
-                log.debug("Injecting method %s %s", m , type(getattr(cls,m)))
-                setattr(instance, m, getattr(cls,m).__get__(instance, cls))
-                
-        # simulate init
-        if cls.__dict__.get('__init__'):
-            getattr(cls, '__init__').__get__(instance,cls)(schema_id, path)
-        return instance
-            
-        
-    
-    def __init__(self, schema_id, path=None):
-        log.debug( "Settings initialized")
-    def get_unpacked(self, key):
-        return self.get_value(key).unpack()
-    
-    def set_formatted(self, key, value, format):
-        self.set_value(key, GLib.Variant(value, format))
-        
-        
 
 if __name__=='__main__':
     op=optparse.OptionParser()

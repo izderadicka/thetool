@@ -5,7 +5,7 @@
     <value nick="suspend" value="2"/>
     <value nick="hibernate" value="3"/>
   </enum>
-  <schema id="eu.zderadicka.TheTool" gettext-domain="thetool">
+  <schema id="eu.zderadicka.thetool" path="/eu/zderadicka/thetool/" gettext-domain="thetool">
  
     <key type="b" name="enable-notifications">
       <default>false</default>
@@ -53,5 +53,34 @@
         Sets intervals that will be available in power-off menu on tray icon.
       </description>
     </key>
+    <key name="monitor-networks" type="b">
+    	<default>false</default>
+    	<summary>Monitor Network Connections Activation</summary>
+    	<description>Monitors network connections, for configured nets provides some actions</description>
+    </key>
+    <key name="networks" type="as">
+    	<default>[]</default>
+    	<summary>List of known network</summary>
+    	<description>List of networks that tool knows, if this network become 
+    		primary active network tool can take some actions</description>
+    </key>
+  </schema>
+  <schema id="eu.zderadicka.thetool.network">
+  	<key name="name" type="s">
+  		<default>''</default>
+  		<summary>User given name</summary>
+  	</key>
+  	<key name="id" type="s">
+  		<default>''</default>
+  		<summary>NetworkManager id/name</summary>
+  	</key>
+  	<key name="network-ip" type="s">
+  		<default>''</default>
+  		<summary>IP of the network (optional)</summary>
+  	</key>
+  	<key name="network-mask" type="s">
+  		<default>''</default>
+  		<summary>Network mask (optional)</summary>
+  	</key>
   </schema>
 </schemalist>
