@@ -3,7 +3,7 @@ Created on Nov 10, 2012
 
 @author: ivan
 '''
-__version__='0.1'
+__version__='0.2'
 
 import sys
 import os
@@ -17,7 +17,7 @@ from gi.repository import Gtk, GdkPixbuf, GObject, Gio, GLib, Gdk, Notify
 
 import utils
 import gdbus
-from config_ui import Settings,UiHelper, SettingsDialog, SETTINGS_ID
+from config_ui import Settings,UiHelper, SettingsDialog, SETTINGS_ID, NET_SETTINGS_ID
 _curr_dir=os.path.split(__file__)[0]
 
 class TheTool(object):
@@ -116,8 +116,10 @@ class TheTool(object):
         
     def _start_nm(self):
         if self.settings.get_unpacked('monitor-networks'):
+            self._set_known_nets()
             self.nm=gdbus.NetworkManager()
             self.nm.add_listener('PropertiesChanged', self.on_network_changed)
+            self._current_net=self.nm.get_default_connection_info().get('name')
         else:
             if hasattr(self,'nm') and self.nm:
                 try:
@@ -126,6 +128,17 @@ class TheTool(object):
                     log.exception('Cannot remove NM listener')
                 self.nm.disconnect()
             self.nm=None
+            
+    def _set_known_nets(self):
+        self._known_nets={}
+        for path in self.settings.get_unpacked('networks'):
+            try:
+                net_details=self.settings.get_settings_under(NET_SETTINGS_ID, path)
+                self._known_nets[net_details.get_unpacked('id')]=path
+            except:
+                log.warn('Cannot get net settings for path %s', path)
+        
+        
     def main(self):
         Gtk.main()
         Notify.uninit()
@@ -206,6 +219,9 @@ Linux desktop rocks! (most of the time:)""")
         if key=="monitor-networks":
             self._start_nm()
             
+        if key=="networks":
+            self._set_known_nets()
+            
             
     def start_power_off(self, mins):
         if self.timer_id:
@@ -281,9 +297,21 @@ Linux desktop rocks! (most of the time:)""")
     def on_network_changed(self, props):
         if props.has_key('ActiveConnections'):
             net=self.nm.get_default_connection_info()
-            log.debug('Def. Network changed to: %s',  net)
-
-
+            if net:
+                log.debug('Def. Network changed to: %s',  net)
+                name=net.get('name')
+                self._change_net(name)
+                
+    def _change_net(self, name, force_change=False):
+        if name == self._current_net:
+            return
+        self._current_net=name
+        if name in self._known_nets:
+            net_settings=self.settings.get_settings_under(NET_SETTINGS_ID, self._known_nets.get(name))
+            log.debug("Connected to known net %s",name)
+            self.send_notification("Connected to known network %s" % net_settings.get_unpacked('name'))
+        else:
+            log.debug("Connected to unknown net %s", name)
 if __name__=='__main__':
     op=optparse.OptionParser()
     op.add_option('-d', '--debug', action="store_true", help="Debug loggin on")

@@ -9,7 +9,8 @@ def list_to_string(lst):
     return ', '.join(map(lambda x: str(x),lst))
 
 def string_to_list(str):
-    return map(lambda x: int(x.strip()), str.split(','))
+    l=filter(lambda i:i.strip(), str.split(','))
+    return map(lambda x: int(x.strip()), l)
 
 def ip4_to_str(num, rev=False):
     address=deque()

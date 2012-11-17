@@ -5,6 +5,7 @@ Created on Nov 16, 2012
 '''
 import sys
 import os
+import re
 import os.path
 import logging
 import time
@@ -21,30 +22,36 @@ NET_SETTINGS_ID=SETTINGS_ID+".network"
 class Validator(object):
     MSG_MIN_LENGHT="Input must have at least %d characters"
     MSG_MAX_LENGTH="Input may not have more then %d characters"
+    MSG_REGEXP="Input must match regular expression %s"
     def __init__(self, entry, min_length=None, max_length=None, allowed_chars=None, regexp=None,
-                 on_check=None):
+                 on_check=None, no_cb_inittialy=False):
         self.entry=entry
         self.min_length=min_length
         self.max_length=max_length
         self.allowed_chars=allowed_chars
-        self.regexp=regexp
+        self.regexp=None
+        if regexp:
+            self.regexp=re.compile(regexp, re.UNICODE)
         self.on_check=on_check
         self._failures=[]
         self._connected_signals=[]
-        self._connect_entry()
+        self._connect_entry(no_cb_inittialy)
     
     
-    def _connect_entry(self):
-        self.validate()
+    def _connect_entry(self, no_cb):
+        self.validate(no_cb)
         id=self.entry.connect('changed', self.on_entry_changed)  
         self._connected_signals.append(id) 
+        if self.allowed_chars:
+            id= self.entry.connect('insert-text', self.on_text_inserted)
+            self._connected_signals.append(id)
         
         
     def disconnect(self):
         for sig in self._connected_signals:
             self.entry.disconnect(sig)
          
-    def validate(self):
+    def validate(self, no_callbacks=False):
         self._failures=[]
         if self.min_length:
             if len(self.entry.get_text() or '')< self.min_length:
@@ -53,13 +60,24 @@ class Validator(object):
             if len(self.entry.get_text() or '')>self.max_length:
                 self.fail(self.MSG_MAX_LENGHT % self.max_length)
                 
+        if self.regexp:
+            text=None
+            try:
+                text=self.entry.get_text().decode('UTF-8')
+            except UnicodeError:
+                log.error('Invalid input text - not unicode' )
+            if text:
+                m=self.regexp.match(text)
+                if not m:
+                    self.fail(self.MSG_REGEXP % self.regexp.pattern)
+                
         if self._failures:
             self._display_failed()
-            if self.on_check:
+            if self.on_check and not no_callbacks:
                 self.on_check(False,self.entry)
         else:
             self._reset_failed()
-            if self.on_check:
+            if self.on_check and not no_callbacks:
                 self.on_check(True,self.entry)
             
     def is_valid(self):
@@ -73,8 +91,16 @@ class Validator(object):
     def _display_failed(self):
         self.entry.set_icon_from_stock(Gtk.EntryIconPosition.SECONDARY, Gtk.STOCK_CANCEL)
         self.entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, '\n'.join(self._failures))
+    
     def _reset_failed(self):
         self.entry.set_icon_from_stock(Gtk.EntryIconPosition.SECONDARY, None)
+        
+    def on_text_inserted(self, entry, new_text, text_lenghth, position):
+        log.debug("Limited entry text entered %s", new_text)
+        for ch in new_text:
+            if ch not in self.allowed_chars:
+                self.entry.emit_stop_by_name('insert-text')
+                return True
 
 class NetworkDetailDialog(Gtk.Dialog):
     UI_FILES=['network-detail.ui']
@@ -92,18 +118,22 @@ class NetworkDetailDialog(Gtk.Dialog):
         self.nm=nm
         self.ui=UiHelper(self)
         self.path=path
+        self.validators=[]
         self.get_content_area().add(self.ui.get_widget(self.UI_ROOT))
         self._load_from_settings()
         self._init_validations()
         
     def _init_validations(self):
-        self.validators=[]
-        self.validators.append(Validator(self.ui.get_widget('display-name'), min_length=3, 
-                                max_length=40, on_check=self._enable_submit))
-        self.validators.append(Validator(self.ui.get_widget('nm-name'), min_length=1, 
-                                max_length=40, on_check=self._enable_submit)) 
-        self._enable_submit(None,None)
+        self.add_validator('display-name', min_length=3, max_length=40)
+        self.add_validator('nm-name', min_length=1, max_length=40) 
+        self.add_validator('ip-address', allowed_chars='0123456789.', regexp=r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') 
+        self.add_validator('subnet-mask', allowed_chars='0123456789.', regexp=r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') 
         
+        
+    def add_validator(self,widget_name, min_length=None, max_length=None, allowed_chars=None, regexp=None):
+        self.validators.append(Validator(self.ui.get_widget(widget_name), min_length, max_length, 
+                                allowed_chars,regexp, on_check=self._enable_submit )) 
+        self._enable_submit(None,None)   
     def _enable_submit(self,v,entry_checked):  
         is_ok=True
         for v in self.validators:
@@ -285,7 +315,10 @@ class SettingsDialog(Gtk.Dialog ):
                            Gio.SettingsBindFlags.DEFAULT)
         
         self.ui.get_widget("power-off-intervals").set_text(utils.list_to_string(self.settings.get_unpacked('poweroff-intervals')))
-        self.ui.get_widget("power-off-intervals").connect('changed', self.on_power_off_intervals_changed)
+        self._validator_po=Validator(self.ui.get_widget('power-off-intervals'), 
+                allowed_chars='0123456789, ', regexp=r'(\d{1,6}\s?,?\s?){1,20}', min_length=1,
+                  on_check=self.on_power_off_intervals_changed, no_cb_inittialy=True)
+        
         wnames=('shutdown', 'suspend', 'hibernate')
         for name in wnames:
             if self.power_actions.get_action(name).get_active():
@@ -297,9 +330,10 @@ class SettingsDialog(Gtk.Dialog ):
         if item.get_active():
             log.debug("Power Off radio selected  %s", name)
             self.power_actions.get_action(name).set_active(True)
-    def on_power_off_intervals_changed(self, item):
+    def on_power_off_intervals_changed(self, valid, item):
         log.debug("Power Intervals changed  to %s", item.get_text())
-        self._plan_update("power-off-intervals")
+        if valid:
+            self._plan_update("power-off-intervals")
     def _plan_update(self, item):
         self.dirty.add(item)
         if self.pending_update_id:
@@ -310,14 +344,13 @@ class SettingsDialog(Gtk.Dialog ):
             log.debug('Syncing data to %s settings', name)
             wgt=self.ui.get_widget(name)
             if name=="power-off-intervals":
-               
                 try:
                     list=utils.string_to_list(wgt.get_text()) 
                 except Exception, e:
                     log.debug("invalid value of list %s", e)
-                    wgt.override_color(Gtk.StateFlags.NORMAL, Gdk.RGBA(1.0, 0.0, 0.0, 1.0) ) 
+                    #wgt.override_color(Gtk.StateFlags.NORMAL, Gdk.RGBA(1.0, 0.0, 0.0, 1.0) ) 
                 else:
-                    wgt.override_color(Gtk.StateFlags.NORMAL, None)
+                    #wgt.override_color(Gtk.StateFlags.NORMAL, None)
                     self.settings.set_formatted('poweroff-intervals', list, 'ai') 
         self.dirty.clear()
         self.pending_update_id=None
