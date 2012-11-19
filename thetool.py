@@ -20,11 +20,19 @@ import gdbus
 from config_ui import Settings,UiHelper, SettingsDialog, SETTINGS_ID, NET_SETTINGS_ID
 _curr_dir=os.path.split(__file__)[0]
 
-class TheTool(object):
+class DuplicateInstance(Exception): pass
+
+class TheTool(Gtk.Application):
     UI_FILES=[]
     STATUS_IDLE, STATUS_POWER_OFF_TIMER= "Idle", "Will Power Off"
     NAME="TheTool"
     def __init__(self):
+        Gtk.Application.__init__(self, application_id=SETTINGS_ID)
+        self.register(None)
+        already_registered=self.get_is_remote()
+        if already_registered:
+            raise DuplicateInstance
+        
         self._init_settings()
         self.icon_normal=GdkPixbuf.Pixbuf.new_from_file(os.path.join(_curr_dir, 'pics', 'knife-grey.png'))
         self.icon_power_off=GdkPixbuf.Pixbuf.new_from_file(os.path.join(_curr_dir, 'pics', 'knife-red.png'))
@@ -39,7 +47,10 @@ class TheTool(object):
         self.ui=UiHelper(self)
         self._cancel_power_off()
         self._start_nm()
+        
+        
         self._devel_start()
+        
     
     
     def _devel_start(self):
@@ -174,6 +185,8 @@ class TheTool(object):
         
     def on_quit_action_activate(self, action):
         log.debug('Quiting')
+        if hasattr(self,'open_settings') and self.open_settings:
+            self.open_settings.destroy()
         Gtk.main_quit()
     def on_about_action_activate(self, action):
         log.debug('About Action')
@@ -193,9 +206,12 @@ Linux desktop rocks! (most of the time:)""")
         d.hide()
     def on_settings_action_activate(self, action):
         log.debug('Showing Settings')
+        
         dialog=SettingsDialog(self.settings, self.power_type_actions, self.nm)
+        self.open_settings=dialog
         dialog.run()
         dialog.destroy()
+        self.open_settings=None
     def on_monitor_action_activate(self, action):
         def turn_off():
             os.system('xset dpms force off')
@@ -318,5 +334,11 @@ if __name__=='__main__':
     options, args= op.parse_args()
     if options.debug:
         logging.basicConfig(level=logging.DEBUG)
-    tool=TheTool()
+    try:
+        tool=TheTool()
+    except DuplicateInstance:
+        msg='Another instance of this applications is already running'
+        print msg
+        log.error('Another instance of this applications is already running')
+        sys.exit(1)
     tool.main()

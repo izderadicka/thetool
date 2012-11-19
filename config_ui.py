@@ -14,6 +14,7 @@ import types
 from gi.repository import Gtk, GdkPixbuf, GObject, Gio, GLib, Gdk, Notify
 
 import utils
+import actions
 _curr_dir=os.path.split(__file__)[0]
 
 SETTINGS_ID='eu.zderadicka.thetool'
@@ -101,35 +102,24 @@ class Validator(object):
             if ch not in self.allowed_chars:
                 self.entry.emit_stop_by_name('insert-text')
                 return True
-
-class NetworkDetailDialog(Gtk.Dialog):
-    UI_FILES=['network-detail.ui']
-    UI_ROOT='network-detail'
-    
-    VALUES_MAPPING=(('display-name', 'name', 's'),
-                    ('nm-name', 'id', 's'),
-                    ('ip-address', 'network-ip', 's'),
-                    ('subnet-mask', 'network-mask', 's'))
-    def __init__(self, parent, settings, path, nm):
-        Gtk.Dialog.__init__(self, "Network Detail", parent, Gtk.DialogFlags.MODAL, (Gtk.STOCK_CANCEL,Gtk.ResponseType.CANCEL, Gtk.STOCK_APPLY, Gtk.ResponseType.OK))
-        
-        log.debug("Network config for path %s", path)
-        self.settings=settings.get_settings_under(NET_SETTINGS_ID, path)
-        self.nm=nm
+            
+class FormDialog(Gtk.Dialog):
+    def __init__(self, title, parent):
+        Gtk.Dialog.__init__(self,title, parent, 
+                Gtk.DialogFlags.MODAL|Gtk.DialogFlags.DESTROY_WITH_PARENT, 
+                (Gtk.STOCK_CANCEL,Gtk.ResponseType.CANCEL, Gtk.STOCK_APPLY, Gtk.ResponseType.OK))
         self.ui=UiHelper(self)
-        self.path=path
         self.validators=[]
         self.get_content_area().add(self.ui.get_widget(self.UI_ROOT))
-        self._load_from_settings()
-        self._init_validations()
+        self.load_values()
+        self.init_validations()
         
-    def _init_validations(self):
-        self.add_validator('display-name', min_length=3, max_length=40)
-        self.add_validator('nm-name', min_length=1, max_length=40) 
-        self.add_validator('ip-address', allowed_chars='0123456789.', regexp=r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') 
-        self.add_validator('subnet-mask', allowed_chars='0123456789.', regexp=r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') 
-        
-        
+    def load_values(self):
+        raise NotImplemented
+    
+    def init_validations(self):
+        raise NotImplemented
+    
     def add_validator(self,widget_name, min_length=None, max_length=None, allowed_chars=None, regexp=None):
         self.validators.append(Validator(self.ui.get_widget(widget_name), min_length, max_length, 
                                 allowed_chars,regexp, on_check=self._enable_submit )) 
@@ -141,7 +131,18 @@ class NetworkDetailDialog(Gtk.Dialog):
                 is_ok=False
                 break
         self.get_widget_for_response(Gtk.ResponseType.OK).set_sensitive(is_ok)
-    def _load_from_settings(self):
+    
+    def get_name(self):
+        return self.ui.get_widget('name').get_text()
+        
+class FormSettingsDialog(FormDialog):
+    #VALUES_MAPPING=(('widget-name', 'setting-name', 'seting type string - like s as b ...'),
+    def __init__(self, title, parent, settings):
+        self.settings=settings 
+        FormDialog.__init__(self, title, parent)
+        
+        
+    def load_values(self):
         for widget, setting, format in self.VALUES_MAPPING:
             if format=='s':
                 self.set_text(widget,setting)
@@ -155,10 +156,33 @@ class NetworkDetailDialog(Gtk.Dialog):
         
     def set_text(self,widget,setting):
         self.ui.get_widget(widget).set_text(self.settings.get_unpacked(setting))
+        
+    
+        
+class NetworkDetailDialog(FormSettingsDialog):
+    UI_FILES=['network-detail.ui']
+    UI_ROOT='network-detail'
+    
+    VALUES_MAPPING=(('display-name', 'name', 's'),
+                    ('nm-name', 'id', 's'),
+                    ('ip-address', 'network-ip', 's'),
+                    ('subnet-mask', 'network-mask', 's'))
+    def __init__(self, parent, settings, path, nm):
+        
+        self.nm=nm
+        self.path=path
+        log.debug("Network config for path %s", path)
+        FormSettingsDialog.__init__(self, "Network Detail", parent, 
+                settings.get_settings_under(NET_SETTINGS_ID, path))
+        
+    def init_validations(self):
+        self.add_validator('display-name', min_length=3, max_length=40)
+        self.add_validator('nm-name', min_length=1, max_length=40) 
+        self.add_validator('ip-address', allowed_chars='0123456789.', regexp=r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') 
+        self.add_validator('subnet-mask', allowed_chars='0123456789.', regexp=r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') 
+        
+    
             
-    def on_done(self, btn):
-        print 'try prevent'
-        return True  
          
     def on_get_current_net(self, btn):
         active=self.nm.get_default_connection_info()
@@ -177,24 +201,22 @@ class NetworkDetailDialog(Gtk.Dialog):
     def get_path(self):
         return self.path
         
-    
-    
-class NetworksDialog(Gtk.Dialog):
-    UI_FILES=['networks.ui']
-    UI_ROOT='networks'
-    def __init__(self, parent, settings, nm):
-        Gtk.Dialog.__init__(self, "Known Networks", parent, Gtk.DialogFlags.MODAL, (Gtk.STOCK_CLOSE,Gtk.ResponseType.CLOSE))
+class InstancesListDialog(Gtk.Dialog):    
+    UI_FILES=['items_list.ui']
+    UI_ROOT='list-ui'
+    PATH_BASE='network'
+    def __init__(self, Title, parent):
+        Gtk.Dialog.__init__(self, Title, parent, Gtk.DialogFlags.MODAL|Gtk.DialogFlags.DESTROY_WITH_PARENT, (Gtk.STOCK_CLOSE,Gtk.ResponseType.CLOSE))
         #self.set_decorations(Gdk.WMDecoration.TITLE)
-        self.settings=settings
-        self.nm=nm
         self.ui=UiHelper(self)
         self.get_content_area().add(self.ui.get_widget(self.UI_ROOT))
         self._init_ui()
-        self.set_list(self.settings.get_unpacked('networks'))
+        self.set_list()
         
     def _init_ui(self):
         self.model=Gtk.ListStore(str,str)
-        self.view=self.ui.get_widget('networks-list')  
+        self.view=self.ui.get_widget('items-list')  
+        self.view.connect('row-activated', self.on_row_activated)
         self.buttons_for_selected=[self.ui.get_widget(w) for w in('remove_button', 'edit_button')]
         select=self.view.get_selection()
         select.connect("changed", self.on_selection)
@@ -209,39 +231,41 @@ class NetworksDialog(Gtk.Dialog):
         status= (iter!=None)
         for b in self.buttons_for_selected:
             b.set_sensitive(status)
+            
     def get_list(self):
         res=[]
         for row in self.model:
             res.append(row[0])  
         return res
-    def set_list(self,nets):
-        log.debug('Settings Networks to %s', nets)
-        for n in nets:
-            net_settings=self.settings.get_settings_under(NET_SETTINGS_ID,n)
-            name=net_settings.get_unpacked('name')
-            if name:
-                self.model.append([n,name])
-    def update_settings(self):
-        nets=self.get_list()
-        self.settings.set_formatted('networks', nets, 'as')
-        log.debug("Networks changed to %s", nets)
-    def on_add(self, btn):
-        self.edit_network(new=True)
+    
+    def set_list(self):
+        raise NotImplemented
+    
+    def update_after_added(self, path):
+        raise NotImplemented
+    def update_after_edit(self, path):
+        pass
+    def update_after_delete(self, path):
+        raise NotImplemented
         
-    def edit_network(self, new=False):
+    def on_add(self, btn):
+        self.edit_item(new=True)
+        
+    def edit_item(self, new=False, path=None):
         if new:
             path=self._create_path()   
-        else: 
+        elif not path: 
             path= self.get_selected_path()
         d=NetworkDetailDialog(self, self.settings, path, self.nm)
         response=d.run()
         if response==Gtk.ResponseType.OK:
             if new:
                 self.model.append([d.get_path(),d.get_name()])
-                self.update_settings()
+                self.update_after_added(path)
             else:
                 model, iter=self.view.get_selection().get_selected() 
                 model[iter][1]=d.get_name()
+                self.update_after_edit(path)
             d.save_all()
         d.destroy()
             
@@ -269,22 +293,61 @@ class NetworksDialog(Gtk.Dialog):
         selection=self.view.get_selection()
         model, item=selection.get_selected()
         if item:
+            path=model[0]
             model.remove(item)
-            self.update_settings()
+            self.update_after_delete(path)
+            
     def on_edit(self, btn):
         path=self.get_selected_path()
         if path:
-            self.edit_network()
-            self.settings.emit('changed', 'networks')
+            self.edit_item()
+            
     def on_selection(self, selection):
         self._enable_btns()
         model,iter=selection.get_selected()
         if iter:
             log.debug("Item selected %s", model[iter])
+            
+    def on_row_activated(self, view, row_path, column):
+        item =self.model.get_iter(row_path)
+        self.view.get_selection().select_path(row_path)
+        if  item:
+            self.edit_item(False, self.model[item][0])
+            
     
         
+    
+class NetworksDialog(InstancesListDialog):
+    def __init__(self, parent, settings, nm):
+        self.settings=settings
+        self.nm=nm
+        InstancesListDialog.__init__(self, "Known Networks", parent)
+        #self.set_decorations(Gdk.WMDecoration.TITLE)
         
         
+    def set_list(self):
+        nets=self.settings.get_unpacked('networks')
+        log.debug('Settings Networks to %s', nets)
+        for n in nets:
+            net_settings=self.settings.get_settings_under(NET_SETTINGS_ID,n)
+            name=net_settings.get_unpacked('name')
+            if name:
+                self.model.append([n,name])
+                
+    def update_settings(self):
+        nets=self.get_list()
+        self.settings.set_formatted('networks', nets, 'as')
+        log.debug("Networks changed to %s", nets)
+        
+    
+    def update_after_added(self, path):
+        self.update_settings()
+    def update_after_edit(self, path):
+        self.settings.emit('changed', 'networks')
+    def update_after_delete(self, path):
+        self.update_settings()
+        
+
 class SettingsDialog(Gtk.Dialog ):
     UI_FILES=['settings.ui']
     UI_ROOT='settings'
@@ -362,7 +425,10 @@ class SettingsDialog(Gtk.Dialog ):
         d.run()
         d.destroy()
 
-        
+    def on_define_actions(self, btn):
+        d=ActionDetailDialog(self) 
+        d.run()
+        d.destroy()  
 
 class UiHelper():
     def __init__(self, for_object):
@@ -423,3 +489,96 @@ class Settings(Gio.Settings):
             p+='/'
         p+=sub_path+'/'
         return Settings(id, p)
+    
+class ActionDetailDialog(FormDialog):
+    UI_FILES=['action-detail.ui']
+    UI_ROOT='__action-detail__'
+    def __init__(self, parent, action=None):
+        self.action=action
+        FormDialog.__init__(self, "Action",parent)
+        self.type_view.connect("changed", self.on_type_changed)
+        self._init_params_view()
+        self.on_type_changed(None)
+        
+    def _init_params_view(self):
+        self.params_view=self.ui.get_widget('__action-params__')
+        self._new_params_model()
+        r=Gtk.CellRendererText()
+        column = Gtk.TreeViewColumn("Name", r, text=0)
+        self.params_view.append_column(column)
+        r=Gtk.CellRendererToggle()
+        r.set_activatable(False)
+        column = Gtk.TreeViewColumn("Mandatory", r, active=1)
+        self.params_view.append_column(column)
+        
+        r=Gtk.CellRendererText()
+        column = Gtk.TreeViewColumn("Type", r, text=2)
+        self.params_view.append_column(column)
+        
+        r=Gtk.CellRendererText()
+        r.set_property('editable',True)
+        column = Gtk.TreeViewColumn("Value (editable)", r, text=3, background_set=4, strikethrough=4, background=6)
+        self.params_view.append_column(column)
+        r.connect("edited", self.on_property_edited)
+        self.params_view.set_tooltip_column(5)
+            
+    def load_values(self):
+        if self.action:
+            pass
+        
+        self._fill_types()
+    
+    
+    def _new_params_model(self):
+        self.params_model= Gtk.ListStore(str, bool, str, str, bool, str, str)
+        self.params_view.set_model(self.params_model)
+            
+    def _fill_types(self):
+        
+        self.type_model=Gtk.ListStore(str,object) 
+        self.type_view=self.ui.get_widget('__action-type__')
+        if self.action==None:
+            for line in actions.get_actions_types() :
+                self.type_model.append(line) 
+        else:
+            self.type_model.append([actions.get_action_type_for_action(self.action), None])
+            self.type_view.set_sensitive(False)
+        
+        self.type_view.set_model(self.type_model)
+        renderer_text = Gtk.CellRendererText()
+        self.type_view.pack_start(renderer_text, True)
+        self.type_view.add_attribute(renderer_text, "text", 0)
+        
+        if not self.action:
+            item=self.type_model.get_iter_first()
+            self.type_view.set_active_iter(item)
+        
+    def init_validations(self):
+        self.add_validator('__action-name__', min_length=3) 
+        
+    def on_property_edited(self,widget, path, text):
+        self.params_model[path][3]=text 
+          
+        
+    def on_type_changed(self, combo):
+        item=self.type_view.get_active_iter()
+        type_name, type_class= self.type_model[item][:]  
+        log.debug("Action type selected to %s", type_name) 
+        self.action=type_class('') 
+        self._load_params()
+        
+    def _load_params(self):
+        log.debug("Loading params for action %s", self.action)
+        self._new_params_model()
+        for params_def in self.action.definition_of_parameters:
+            
+            name=params_def[0]
+            mandatory=params_def[1]
+            type=params_def[2]
+            allowed_values=None
+            if len(params_def)>3:
+                allowed_values=params_def[3]
+            log.debug('Get param %s %s %s %s', name, mandatory, type, allowed_values)   
+            self.params_model.append([name, mandatory, type.__name__, self.action.get_param(name) or '', True, "Error Message" ,'#ffc7c7'])
+                
+            
