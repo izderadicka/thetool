@@ -8,23 +8,40 @@ import json
 import re
 import types
 import logging
+import os
+import os.path
 log=logging.getLogger('TheTool - Actions')
 
-
+ACTIONS_FILE=os.path.expanduser('~/.config/thetool/actions.json')
 _known_actions_types={}
 _actions={}
 
+def save():
+    file_path=os.path.dirname(ACTIONS_FILE)
+    if not os.path.exists(file_path):
+        os.makedirs(file_path)
+    with file(ACTIONS_FILE, 'wb') as f:
+        dump(f,_actions)
+        
+def load():
+    if os.path.exists(ACTIONS_FILE):
+        with file(ACTIONS_FILE, 'rb') as f:
+            _actions=loads(f.read())
+            
 def register_type(klass, name):
     _known_actions_types[name]=klass
     
 def add_action(action):
     _actions[action.name]=action
+    save()
     
-def remove_action(action):
+def remove_action(action, no_save=False):
     if isinstance(action, basestring):
         del _actions[action]
     elif isinstance(action, Action):
         del _actions[action.name]
+    if not no_save:
+        save()
         
 def get_actions_types():
     return [(n, _known_actions_types[n]) for n  in _known_actions_types]
@@ -45,6 +62,7 @@ class Serializer(json.JSONEncoder):
         
 def dumps(o):
     return Serializer().encode(o)
+
 def dump(file,o):
     for chunk in Serializer().iterencode(o):
         file.write(chunk)
@@ -83,9 +101,15 @@ class Action(object):
             params.append((name, self._params.get(name)))
         return params
     
-    @property
-    def name(self):
+    
+    def _get_name(self):
         return self._name
+    def _set_name(self, val):
+        if not val:
+            raise ValueError('Name cannot be empty')
+        self._name=val
+    name=property(_get_name, _set_name)
+        
     
     def set_param(self, name, value):
         validated_value=self.validate_param(name, value)
@@ -94,8 +118,36 @@ class Action(object):
     def get_param(self, name):
         return self._params.get(name)
     
-    def validate_param(self, name, value):
+    def get_param_as_str(self,name):
+        type,mandatory,allowed_values= self.get_param_definition(name)
+        val=self.get_param(name)
+        if val==None:
+            return None
+        if isinstance(type, basestring):
+            return val
+        elif type in (list,tuple):
+            return ', '.join(val)
+        elif type==dict:
+            repr=[k+':'+val[k] for k in val]
+            return ', '.join(repr)
+        else:
+            return str(val)
+        
+        
+    def get_param_definition(self, name):   
         type,mandatory,allowed_values= None, None, None
+        for param_def in self.definition_of_parameters:
+            if name==param_def[0]:
+                type=param_def[2]
+                mandatory=param_def[1]
+                allowed_values= len(param_def)>3 and param_def[3]
+                break
+        if not type:
+            raise ValueError("Invalid param name %s"%name)   
+        return  type,mandatory,allowed_values
+        
+    def validate_param(self, name, value):
+        type,mandatory,allowed_values= self.get_param_definition(name)
         for param_def in self.definition_of_parameters:
             if name==param_def[0]:
                 type=param_def[2]
@@ -106,7 +158,8 @@ class Action(object):
             raise ValueError("Invalid param name %s"%name)        
         if mandatory and not value:
             raise ParameterError("Parameter must have value")
-        
+        if value is None:
+            return None
         
         validated_value=value
         if type==bool:

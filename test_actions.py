@@ -36,7 +36,7 @@ class Test(unittest.TestCase):
                ('string2', None, str),
                ('string3', u"Uni", unicode),
                ('int1', '5', int),
-               ('list1', 'ano,ne', list),
+               ('list1', 'ano, ne', list),
                ('bool1', "False", bool),
                ('restricted1', 'opt3', str),
                ('restricted2', 'opt1, opt3', list),
@@ -49,7 +49,8 @@ class Test(unittest.TestCase):
             self.a.set_param(name, val)
             stored=self.a.get_param(name)
             if type not in (list,dict,bool, basestring):
-                self.assertEqual(type(val), type(stored))
+                self.assertEqual(type(val) if val!=None else None, stored)
+            self.assertEqual(val, self.a.get_param_as_str(name))
         self.assertEqual(self.a.get_param('list1'), ['ano','ne'])
         
     def testIncorrect(self):

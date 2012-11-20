@@ -6,18 +6,18 @@ Created on Nov 10, 2012
 __version__='0.2'
 
 import sys
-import os
 import os.path
 import optparse
 import logging
 log=logging.getLogger("TheTool")
 import time
 import math
-from gi.repository import Gtk, GdkPixbuf, GObject, Gio, GLib, Gdk, Notify
+from gi.repository import Gtk, GdkPixbuf, GLib, Gdk, Notify #@UnresolvedImport
 
 import utils
 import gdbus
-from config_ui import Settings,UiHelper, SettingsDialog, SETTINGS_ID, NET_SETTINGS_ID
+from config_ui import UiHelper, SettingsDialog, SETTINGS_ID, NET_SETTINGS_ID
+from gsettings import Settings
 _curr_dir=os.path.split(__file__)[0]
 
 class DuplicateInstance(Exception): pass
@@ -130,7 +130,8 @@ class TheTool(Gtk.Application):
             self._set_known_nets()
             self.nm=gdbus.NetworkManager()
             self.nm.add_listener('PropertiesChanged', self.on_network_changed)
-            self._current_net=self.nm.get_default_connection_info().get('name')
+            conn=self.nm.get_default_connection_info()
+            self._current_net=conn.get('name') if conn else None
         else:
             if hasattr(self,'nm') and self.nm:
                 try:
