@@ -172,17 +172,20 @@ class AbstactListHandler(object):
     def get_path_base(self):
         return 'item'
     
-    def create_details_dialog(self, path):
+    def create_details_dialog(self, path, name):
         raise NotImplementedError()
     
-    def update_after_added(self, path):
+    def update_after_added(self, path, name):
         raise NotImplementedError()
     
-    def update_after_edit(self, path):
+    def update_after_edit(self, path, name):
         pass
     
-    def update_after_delete(self, path):
+    def update_after_delete(self, path, name):
         raise NotImplementedError()
+    
+    def update_after_dnd(self, from_index, to_index):
+        pass
     
     def attach_to(self, widget):
         self.widget=widget
@@ -199,7 +202,6 @@ class AbstactListHandler(object):
         parent=self.widget   
         while parent is not None and not isinstance(parent, Gtk.Window): 
             parent=parent.get_parent()  
-            print parent 
         return parent
             
         
@@ -207,41 +209,58 @@ class InstancesListBox(Gtk.VBox):
     UI_FILES=['items_list.ui']
     UI_ROOT='list-ui'
 
-    def __init__(self, title, handler):
+    def __init__(self, title, handler, dnd=False):
         Gtk.VBox.__init__(self,False,0)
+        self.dnd=dnd
+        self.dnd_started=None
         self.ui=UiHelper(self)
         self.pack_start(self.ui.get_widget(self.UI_ROOT), True, True, 0)
         if title:
             self.ui.get_widget('title-label').set_label(title)
         self.handler=handler
-        handler.attach_to(self)
+        self.handler.attach_to(self)
         self._init_ui()
         self.set_list()
+        self._connect_signals()
         self.show_all()
       
     def set_list(self):
         for path, name in self.handler.get_inital_list():
             self.model.append([path,name])
             
-    def get_list(self):
-        res=[]
-        for row in self.model:
-            res.append(row[0])  
-        return res
             
     def _init_ui(self):
         self.model=Gtk.ListStore(str,str)
         self.view=self.ui.get_widget('items-list')  
-        self.view.connect('row-activated', self.on_row_activated)
+        self.view.set_reorderable(self.dnd)
         self.buttons_for_selected=[self.ui.get_widget(w) for w in('remove_button', 'edit_button')]
-        select=self.view.get_selection()
-        select.connect("changed", self.on_selection)
         self.view.set_model(self.model)
         renderer = Gtk.CellRendererText()
         column = Gtk.TreeViewColumn("Name", renderer, text=1)
         self.view.append_column(column)
         self._enable_btns()
-    
+    def on_row_inserted(self, model, path, iter):
+        pathi,name=model[iter][:]
+        if pathi==None and name==None:
+            log.debug("possible DND on row %s", path.to_string())
+            self.dnd_started=path.to_string()
+        else:
+            log.debug("Row inserted %s %s", path.to_string(), [path, name])
+            self.dnd_start=False
+    def  on_row_deleted(self, model, path):
+        if self.dnd_started !=None:
+            self.handler.update_after_dnd(path.to_string(), self.dnd_started)
+            log.debug("DND from %s to %s", path.to_string(), self.dnd_started )
+        else:
+            log.debug("Row deleted %s", path.to_string())
+        self.dnd_started=None
+        
+    def _connect_signals(self):
+        self.model.connect('row-inserted', self.on_row_inserted)
+        self.model.connect('row-deleted', self.on_row_deleted)
+        self.view.connect('row-activated', self.on_row_activated)
+        select=self.view.get_selection()
+        select.connect("changed", self.on_selection)
     def _enable_btns(self):
         _, iter= self.view.get_selection().get_selected()
         status= (iter!=None)
@@ -251,30 +270,31 @@ class InstancesListBox(Gtk.VBox):
     def on_add(self, btn):
         self.edit_item(new=True)
         
-    def edit_item(self, new=False, path=None):
+    def edit_item(self, new=False, path=None, name=None):
         if new:
             path=self._create_path()   
+            name=None
         elif not path: 
-            path= self.get_selected_path()
-        d=self.handler.create_details_dialog(path)
+            path, name= self.get_selected_item()
+        d=self.handler.create_details_dialog(path, name)
         response=d.run()
         if response==Gtk.ResponseType.OK:
             if new:
-                self.model.append([d.get_path(),d.get_name()])
-                self.handler.update_after_added(path)
+                self.model.append([path,d.get_name()])
+                self.handler.update_after_added(path,d.get_name())
             else:
                 model, iter=self.view.get_selection().get_selected() 
                 model[iter][1]=d.get_name()
-                self.handler.update_after_edit(path)
+                self.handler.update_after_edit(path,d.get_name())
             d.save_all()
         d.destroy()
             
-    def get_selected_path(self, selection=None):
+    def get_selected_item(self, selection=None):
         if not selection:
             selection=self.view.get_selection()
         model, iter=selection.get_selected()
         if iter:
-            return model[iter][0]
+            return model[iter][:]
             
     def _create_path(self):
         def get_no(n):
@@ -283,7 +303,7 @@ class InstancesListBox(Gtk.VBox):
                 return int(n[1]) if len(n)>1 else 0;
             return 0
         no=1
-        all=self.get_list()
+        all=[row[0] for row in self.model]
         numbers=map(lambda x: get_no(x),all)
         if numbers:
             no=max(numbers)+1
@@ -293,12 +313,12 @@ class InstancesListBox(Gtk.VBox):
         selection=self.view.get_selection()
         model, item=selection.get_selected()
         if item:
-            path=model[0]
+            path, name=model[item][:]
             model.remove(item)
-            self.handler.update_after_delete(path)
+            self.handler.update_after_delete(path, name)
             
     def on_edit(self, btn):
-        path=self.get_selected_path()
+        path, _=self.get_selected_item()
         if path:
             self.edit_item()
             
@@ -306,20 +326,20 @@ class InstancesListBox(Gtk.VBox):
         self._enable_btns()
         model,iter=selection.get_selected()
         if iter:
-            log.debug("Item selected %s", model[iter])
+            log.debug("Item selected %s", model[iter][:])
             
     def on_row_activated(self, view, row_path, column):
         item =self.model.get_iter(row_path)
         self.view.get_selection().select_path(row_path)
         if  item:
-            self.edit_item(False, self.model[item][0])
+            self.edit_item(False, path=self.model[item][0], name=self.model[item][1])
     
         
 class InstancesListDialog(Gtk.Dialog):    
    
-    def __init__(self, title, parent, handler):
+    def __init__(self, title, parent, handler, dnd=False):
         Gtk.Dialog.__init__(self, title, parent, Gtk.DialogFlags.MODAL|Gtk.DialogFlags.DESTROY_WITH_PARENT, (Gtk.STOCK_CLOSE,Gtk.ResponseType.CLOSE))
-        self.box=InstancesListBox(title, handler)
+        self.box=InstancesListBox(title, handler, dnd)
         self.get_content_area().add(self.box)
         
             

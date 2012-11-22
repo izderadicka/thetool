@@ -24,9 +24,15 @@ def save():
         dump(f,_actions)
         
 def load():
+    global _actions
     if os.path.exists(ACTIONS_FILE):
         with file(ACTIONS_FILE, 'rb') as f:
-            _actions=loads(f.read())
+            s=f.read()
+            new_actions=loads(s)
+            _actions=new_actions
+    else:
+        log.warn("Actions file %s does not exist", ACTIONS_FILE)
+        _actions={}
             
 def register_type(klass, name):
     _known_actions_types[name]=klass
@@ -42,6 +48,17 @@ def remove_action(action, no_save=False):
         del _actions[action.name]
     if not no_save:
         save()
+        
+def get_actions_list(sorted=True):
+    actions=_actions.keys()
+    if sorted:
+        actions.sort()
+    return actions
+
+def get_action(name):
+    if not name:
+        return None
+    return _actions.get(name)
         
 def get_actions_types():
     return [(n, _known_actions_types[n]) for n  in _known_actions_types]
@@ -236,11 +253,12 @@ register_type(ChangeProxyAction, 'Change Proxy')
         
 def main():
     oracle_proxy=ChangeProxyAction("Oracle proxy")
-    oracle_proxy.assign_param('host', 'my.dom.com')
-    s=dumps([oracle_proxy])
+    oracle_proxy.set_param('host', 'my.dom.com')
+    oracle_proxy.set_param('port', '10')
+    s=dumps({"my_action":oracle_proxy})
     print oracle_proxy, s
-    o=loads(s)[0]
-    print o, o.name, o.parameters
+    o=loads(s)
+    print o
     
     
 if __name__=='__main__':

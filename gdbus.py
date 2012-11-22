@@ -52,7 +52,10 @@ class DBusProxyWrapper(object):
             log.warn('Cannot init properties interface for object - %s, error %s', object_path,e)
             
         self._listeners=defaultdict(lambda: set())   
-        
+    
+    def fake_signal(self, sender_name, signal, params):  
+        self._receive_signal('g-signal', sender_name, signal, params) 
+         
     def disconnect(self):    
         if self.receive_signals:
             hasattr(self,'_proxy_sig') and self._proxy.disconnect(self._proxy_sig)
@@ -67,8 +70,8 @@ class DBusProxyWrapper(object):
             log.warn("cannot remove listener %s from %s - %s", call_back, signal,e)
             
     def _receive_signal(self, proxy, sender_name, signal, params, user_data=None):
-        params=params.unpack()
-        log.debug('Received signal %s on object %s sender %s',  signal, self.object_path, sender_name)
+        params=params.unpack() if hasattr(params, 'unpack') else params
+        log.debug('Received signal %s on object %s sender %s params %s',  signal, self.object_path, sender_name, params)
         for l in self._listeners[signal]:
             #todo - should call with idle? or thread save
             l(*params)
@@ -77,7 +80,7 @@ class DBusProxyWrapper(object):
         names=self._proxy.get_cached_property_names()
         if name in names:
             if self.sync_props and hasattr(self, '_props_proxy') and self._props_proxy:
-                log.debug('Getting property %s from remote object %s', name, self.object_path)
+                #log.debug('Getting property %s from remote object %s', name, self.object_path)
                 val= self._props_proxy.call_sync('Get', GLib.Variant('(ss)',(self.interface, name)),
                     Gio.DBusCallFlags.NONE, -1, None)
                 self._proxy.set_cached_property(name, val)
@@ -105,7 +108,8 @@ class DBusProxyWrapper(object):
             return klass(path, **kwargs)
         else:
             return DBusProxyWrapper(self.bus_type, self.bus_name, path, interface, sync_props=self.sync_props)
-
+    def get_object_path(self):
+        return self.object_path
 
 NM_DEVICE_TYPE_UNKNOWN = 0
 NM_DEVICE_TYPE_ETHERNET = 1
@@ -119,13 +123,20 @@ NM_DEVICE_TYPE_MODEM = 8
 NM_DEVICE_TYPE_INFINIBAND = 9
 NM_DEVICE_TYPE_BOND = 10
 NM_DEVICE_TYPE_VLAN = 11
+
+NM_ACTIVE_CONNECTION_STATE_UNKNOWN = 0
+NM_ACTIVE_CONNECTION_STATE_ACTIVATING = 1
+NM_ACTIVE_CONNECTION_STATE_ACTIVATED = 2
+NM_ACTIVE_CONNECTION_STATE_DEACTIVATING = 3
         
 class NMError(Exception) : pass       
 class NMBase(DBusProxyWrapper):
     #INTERFACE=must specify this class attr in derived classes
     def __init__(self, object_path, **kwargs): 
         super(NMBase,self).__init__("system", 'org.freedesktop.NetworkManager',
-                                    object_path, self.INTERFACE, sync_props=True, **kwargs)       
+                                    object_path, self.INTERFACE, sync_props=True, **kwargs)     
+        
+
         
 class NetworkManager (NMBase):
     INTERFACE='org.freedesktop.NetworkManager'
@@ -135,20 +146,48 @@ class NetworkManager (NMBase):
             log.debug( "NM Prop.Changes args %s", args)
         self.add_listener('PropertiesChanged', echo)
         
+class NetworkManagerMonitor(NetworkManager):  
+    def __init__(self):
+        super(NetworkManagerMonitor, self).__init__()
+        self.pending_connections=[]
+
+    def remove_pending(self):
+        for cn in self.pending_connections:
+            cn.remove_listener('PropertiedChanged', self.on_conn_state_change)
+            cn.disconnect()   
+        self.pending_connections=[]
+        
+    def on_conn_state_change(self, props):
+        log.debug('Pending connection state changed to %s', props)
+        if props.get('State') and props['State']!=NM_ACTIVE_CONNECTION_STATE_ACTIVATING:
+            conns=self.ActiveConnections
+            log.debug('Emmitting signal')
+            self.fake_signal('__internal__', 'PropertiesChanged',  ({'ActiveConnections':conns},))
+    
+    def disconnect(self):
+        super(NetworkManagerMonitor, self).disconnect()
+        self.remove_pending()
+            
     def get_default_connection_info(self):
         
         connections_list=self.ActiveConnections
         conns= map(lambda path: self.to_object(path, klass=NMConnectionActive),connections_list)
         
-        c=None
+        c_vpn,c_default=None, None
         for cn in conns:
+            state=cn.State
+            print cn.Uuid, state
+            if state != NM_ACTIVE_CONNECTION_STATE_ACTIVATED:
+                log.debug('Adding connection %s to pending', cn.get_object_path())
+                non_active=self.to_object(cn.get_object_path(),klass=NMConnectionActive, receive_signals=True )
+                non_active.add_listener('PropertiesChanged', self.on_conn_state_change)
+                continue
             if cn.Vpn:
-                c=cn
+                c_vpn=cn
                 break
-        if not c:
-            for cn in conns:
-                if cn.Default:
-                    c=cn
+            if cn.Default:
+                    c_default=cn
+        c=c_vpn or c_default
         if not c:
             log.warn("Cannot get vpn or default connection")
             return None

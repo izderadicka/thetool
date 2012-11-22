@@ -78,7 +78,7 @@ class NetworksHandler(AbstactListHandler):
     def get_path_base(self):
         return 'network'
     
-    def create_details_dialog(self,path):
+    def create_details_dialog(self,path, name):
         return NetworkDetailDialog(self.get_parent_window(), self.settings, path, self.nm)    
     
     def update_settings(self):
@@ -86,21 +86,54 @@ class NetworksHandler(AbstactListHandler):
         self.settings.set_formatted('networks', nets, 'as')
         log.debug("Networks changed to %s", nets)
     
-    def update_after_added(self, path):
+    def update_after_added(self, path, name):
         self.update_settings()
         
-    def update_after_edit(self, path):
+    def update_after_edit(self, path, name):
         self.settings.emit('changed', 'networks')
         
-    def update_after_delete(self, path):
+    def update_after_delete(self, path, name):
         self.update_settings()
         
-           
+    def update_after_dnd(self, form_index, to_index):
+        self.update_settings()    
+        
+          
 class NetworksDialog(InstancesListDialog):
-    PATH_BASE="network"
     def __init__(self, parent, settings, nm):
         self.handler=NetworksHandler(settings, nm)
-        InstancesListDialog.__init__(self, "Known Networks", parent, self.handler)
+        InstancesListDialog.__init__(self, "Known Networks", parent, self.handler, True)
+
+class ActionsHandler(AbstactListHandler):
+    
+    def __init__(self):
+        pass
+    
+    def get_inital_list(self):
+        names=actions.get_actions_list(sorted=True)
+        for i,name in enumerate(names):
+                yield "%s-%d"%(self.get_path_base(),i),name
+    
+    def get_path_base(self):
+        return 'action'
+    
+    def create_details_dialog(self,path, name):
+        return ActionDetailDialog(self.get_parent_window(), actions.get_action(name))    
+    
+    def update_after_added(self, path, name):
+        pass
+        
+    def update_after_edit(self, path, name):
+        pass
+        
+    def update_after_delete(self, path, name):
+        actions.remove_action(name)
+        
+        
+class ActionsDialog(InstancesListDialog):
+    def __init__(self, parent):
+        self.handler=ActionsHandler()
+        InstancesListDialog.__init__(self, "Actions", parent, self.handler)
         
         
 class SettingsDialog(Gtk.Dialog ):
@@ -131,6 +164,9 @@ class SettingsDialog(Gtk.Dialog ):
                            Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('default-poweroff-timeout', self.ui.get_widget('default-poweroff-timeout'), 'value',
                            Gio.SettingsBindFlags.DEFAULT)
+        self.settings.bind('actions-file', self.ui.get_widget('actions-file'), 'text',
+                           Gio.SettingsBindFlags.DEFAULT)
+        
         
         self.ui.get_widget("power-off-intervals").set_text(utils.list_to_string(self.settings.get_unpacked('poweroff-intervals')))
         self._validator_po=Validator(self.ui.get_widget('power-off-intervals'), 
@@ -184,10 +220,22 @@ class SettingsDialog(Gtk.Dialog ):
         pass
 
     def on_define_actions(self, btn):
-        d=ActionDetailDialog(self) 
+        d=ActionsDialog(self) 
         d.run()
-        d.save_all()
         d.destroy()  
+        
+    def on_select_actions_file(self, btn):
+        d=Gtk.FileChooserDialog("Select Actions Definition File", self, Gtk.FileChooserAction.OPEN,
+         (Gtk.STOCK_CANCEL,Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.ACCEPT))
+        current=self.ui.get_widget('actions-file').get_text()
+        if current:
+            d.set_filename(current)
+        response=d.run()
+        if response==Gtk.ResponseType.ACCEPT:
+            file_name=d.get_filename()
+            self.ui.get_widget('actions-file').set_text(file_name)
+        d.destroy()
+        
     
 
 class ActionDetailDialog(FormDialog):
@@ -195,12 +243,17 @@ class ActionDetailDialog(FormDialog):
     UI_ROOT='__action-detail__'
     def __init__(self, parent, action=None):
         self.action=action
-        self._old_action_name=action.name if action else None
         self.params_model=None
         FormDialog.__init__(self, "Action",parent)
         self.type_view.connect("changed", self.on_type_changed)
         self._init_params_view()
-        self.on_type_changed(None)
+        if not self.action:
+            self._create_action_from_type()
+            self._old_action_name=None
+        else:
+            self._old_action_name=action.name
+        self._load_params()
+        self.ui.get_widget('__action-name__').set_text(self.action.name)
         
     def _init_params_view(self):
         self.params_view=self.ui.get_widget('__action-params__')
@@ -251,9 +304,8 @@ class ActionDetailDialog(FormDialog):
         self.type_view.pack_start(renderer_text, True)
         self.type_view.add_attribute(renderer_text, "text", 0)
         
-        if not self.action:
-            item=self.type_model.get_iter_first()
-            self.type_view.set_active_iter(item)
+        item=self.type_model.get_iter_first()
+        self.type_view.set_active_iter(item)
         
     def init_validations(self):
         self.add_validator('__action-name__', min_length=3) 
@@ -280,11 +332,15 @@ class ActionDetailDialog(FormDialog):
                 
             
     def on_type_changed(self, combo):
+        self._create_action_from_type()
+        self._load_params()
+    
+    def _create_action_from_type(self):
         item=self.type_view.get_active_iter()
         type_name, type_class= self.type_model[item][:]  
-        log.debug("Action type selected to %s", type_name) 
-        self.action=type_class('') 
-        self._load_params()
+        log.debug("New Action of type  %s created", type_name) 
+        self.action=type_class('')
+        
         
     def _load_params(self):
         log.debug("Loading params for action %s", self.action)
@@ -298,7 +354,7 @@ class ActionDetailDialog(FormDialog):
             if len(params_def)>3:
                 allowed_values=params_def[3]
             log.debug('Get param %s %s %s %s', name, mandatory, type, allowed_values)  
-            value = self.action.get_param(name) 
+            value = self.action.get_param_as_str(name) 
             error,msg=self._validate_param(name, value)
             self.params_model.append([name, mandatory, type.__name__, 
                     value or '', error, msg ,'#ffc7c7'])
@@ -310,7 +366,7 @@ class ActionDetailDialog(FormDialog):
         for row in self.params_model:
             self.action.set_param(row[0],row[3])
         if self._old_action_name:
-            actions.remove_action(self.action, no_save=True)
+            actions.remove_action(self._old_action_name, no_save=True)
         actions.add_action(self.action)
     
     def _enable_submit(self,valid=None,entry_checked=None):  
@@ -325,5 +381,8 @@ class ActionDetailDialog(FormDialog):
                     is_ok=False
                     break
         self.get_widget_for_response(Gtk.ResponseType.OK).set_sensitive(is_ok)
+        
+    def get_name(self):
+        return self.ui.get_widget('__action-name__').get_text()
                 
             

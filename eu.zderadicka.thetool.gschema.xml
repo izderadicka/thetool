@@ -64,6 +64,11 @@
     	<description>List of networks that tool knows, if this network become 
     		primary active network tool can take some actions</description>
     </key>
+    <key name="actions-file" type="s">
+    	<default>'/home/ivan/.config/thetool/actions.json'</default>
+    	<summary>File with actions definitions</summary>
+    	<description>Files containing defined actions, serialized in JSON format.</description>
+    </key>
   </schema>
   <schema id="eu.zderadicka.thetool.network">
   	<key name="name" type="s">

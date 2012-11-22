@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''
 Created on Nov 10, 2012
 
@@ -14,13 +15,70 @@ import time
 import math
 from gi.repository import Gtk, GdkPixbuf, GLib, Gdk, Notify #@UnresolvedImport
 
-import utils
+import actions
 import gdbus
+from collections import defaultdict
 from config_ui import UiHelper, SettingsDialog, SETTINGS_ID, NET_SETTINGS_ID
 from gsettings import Settings
 _curr_dir=os.path.split(__file__)[0]
 
 class DuplicateInstance(Exception): pass
+
+class NetMonitor(object):
+    def __init__(self, settings, on_change_cb):
+        self.on_change_cb=on_change_cb
+        self._known_nets={}
+        self.settings=settings
+        self._current_net=None
+        
+    def init(self):
+        self._known_nets=defaultdict(lambda: dict)
+        for path in self.settings.get_unpacked('networks'):
+            try:
+                net_details=self.settings.get_settings_under(NET_SETTINGS_ID, path)
+                self._known_nets[net_details.get_unpacked('id')][net_details.get_unpacked(path)]=\
+                                                    (net_details.get_unpacked('name'),
+                                                     net_details.get_unpacked('network-ip'),
+                                                    net_details.get_unpacked('network-mask'))
+            except:
+                log.warn('Cannot get net settings for path %s', path)
+                
+    def start(self):
+        self.init()
+        self.nm=gdbus.NetworkManagerMonitor()
+        self.nm.add_listener('PropertiesChanged', self.on_network_changed)
+        conn=self.nm.get_default_connection_info()
+        self._current_net=conn.get('name') if conn else None
+   
+    def stop(self):   
+        if hasattr(self,'nm') and self.nm:
+            try:
+                self.nm.remove_listener('PropertiesChanged', self.on_network_changed)    
+            except:
+                log.exception('Cannot remove NM listener')
+            self.nm.disconnect()
+        self.nm=None    
+        
+    def on_network_changed(self, props):
+        if props.has_key('ActiveConnections'):
+            net=self.nm.get_default_connection_info()
+            if net:
+                log.debug('Def. Network changed to: %s',  net)
+                name=net.get('name')
+                if name == self._current_net:
+                    return
+                self._current_net=name
+                if name in self._known_nets:
+                    
+                    log.debug("Connected to known net %s",name)
+                    known_name=name
+                    path=None
+                else:
+                    log.debug("Connected to unknown net %s", name)
+                    known_name=None
+                    path=None
+                self.on_change_cb(known_name, path)
+    
 
 class TheTool(Gtk.Application):
     UI_FILES=[]
@@ -46,6 +104,7 @@ class TheTool(Gtk.Application):
         self._build_menus()
         self.ui=UiHelper(self)
         self._cancel_power_off()
+        self._load_actions()
         self._start_nm()
         
         
@@ -128,7 +187,7 @@ class TheTool(Gtk.Application):
     def _start_nm(self):
         if self.settings.get_unpacked('monitor-networks'):
             self._set_known_nets()
-            self.nm=gdbus.NetworkManager()
+            self.nm=gdbus.NetworkManagerMonitor()
             self.nm.add_listener('PropertiesChanged', self.on_network_changed)
             conn=self.nm.get_default_connection_info()
             self._current_net=conn.get('name') if conn else None
@@ -149,6 +208,11 @@ class TheTool(Gtk.Application):
                 self._known_nets[net_details.get_unpacked('id')]=path
             except:
                 log.warn('Cannot get net settings for path %s', path)
+                
+                
+    def _load_actions(self):
+        actions.ACTIONS_FILE=self.settings.get_unpacked('actions-file')
+        actions.load()
         
         
     def main(self):
@@ -235,9 +299,10 @@ Linux desktop rocks! (most of the time:)""")
             self.set_icon()
         if key=="monitor-networks":
             self._start_nm()
-            
         if key=="networks":
             self._set_known_nets()
+        if key=="actions-file":
+            self._load_actions()
             
             
     def start_power_off(self, mins):
@@ -335,6 +400,8 @@ if __name__=='__main__':
     options, args= op.parse_args()
     if options.debug:
         logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger('TheTool.GSettings').setLevel(logging.INFO)
+        #logging.getLogger('gdbus').setLevel(logging.INFO)
     try:
         tool=TheTool()
     except DuplicateInstance:
