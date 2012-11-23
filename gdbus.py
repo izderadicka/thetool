@@ -169,18 +169,19 @@ class NetworkManagerMonitor(NetworkManager):
         self.remove_pending()
             
     def get_default_connection_info(self):
-        
+        self.remove_pending()
         connections_list=self.ActiveConnections
         conns= map(lambda path: self.to_object(path, klass=NMConnectionActive),connections_list)
         
         c_vpn,c_default=None, None
         for cn in conns:
             state=cn.State
-            print cn.Uuid, state
+            #print cn.Uuid, state
             if state != NM_ACTIVE_CONNECTION_STATE_ACTIVATED:
                 log.debug('Adding connection %s to pending', cn.get_object_path())
                 non_active=self.to_object(cn.get_object_path(),klass=NMConnectionActive, receive_signals=True )
                 non_active.add_listener('PropertiesChanged', self.on_conn_state_change)
+                self.pending_connections.append(non_active)
                 continue
             if cn.Vpn:
                 c_vpn=cn

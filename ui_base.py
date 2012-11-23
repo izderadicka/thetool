@@ -12,6 +12,7 @@ from gi.repository import Gtk #@UnresolvedImport
 
 _curr_dir=os.path.split(__file__)[0]
 
+import actions
 
 class Validator(object):
     MSG_MIN_LENGHT="Input must have at least %d characters"
@@ -97,14 +98,15 @@ class Validator(object):
                 return True
             
 class FormDialog(Gtk.Dialog):
-    def __init__(self, title, parent):
+    def __init__(self, title, parent, new=False):
         Gtk.Dialog.__init__(self,title, parent, 
                 Gtk.DialogFlags.MODAL|Gtk.DialogFlags.DESTROY_WITH_PARENT, 
                 (Gtk.STOCK_CANCEL,Gtk.ResponseType.CANCEL, Gtk.STOCK_APPLY, Gtk.ResponseType.OK))
         self.ui=UiHelper(self)
         self.validators=[]
         self.get_content_area().add(self.ui.get_widget(self.UI_ROOT))
-        self.load_values()
+        if not new:
+            self.load_values()
         self.init_validations()
         
     def load_values(self):
@@ -133,9 +135,9 @@ class FormDialog(Gtk.Dialog):
         
 class FormSettingsDialog(FormDialog):
     #VALUES_MAPPING=(('widget-name', 'setting-name', 'seting type string - like s as b ...'),
-    def __init__(self, title, parent, settings):
+    def __init__(self, title, parent, settings, new=False):
         self.settings=settings 
-        FormDialog.__init__(self, title, parent)
+        FormDialog.__init__(self, title, parent, new)
         
         
     def load_values(self):
@@ -172,7 +174,7 @@ class AbstactListHandler(object):
     def get_path_base(self):
         return 'item'
     
-    def create_details_dialog(self, path, name):
+    def create_details_dialog(self, path, name, new):
         raise NotImplementedError()
     
     def update_after_added(self, path, name):
@@ -203,7 +205,84 @@ class AbstactListHandler(object):
         while parent is not None and not isinstance(parent, Gtk.Window): 
             parent=parent.get_parent()  
         return parent
+
+class ActionsBox(Gtk.VBox):  
+    UI_FILES=['actions_list.ui']   
+    UI_ROOT='actions-ui'
+    NOT_SELECTED='<Choose Action>'
+    def __init__(self, title, actions=None):   
+        Gtk.VBox.__init__(self,False,0)
+        self.ui=UiHelper(self)
+        self.pack_start(self.ui.get_widget(self.UI_ROOT), True, True, 0)
+        if title:
+            self.ui.get_widget('title-label').set_label(title)  
+            self.ui.get_widget('title-label').set_visible(True)
+        self.actions=actions
+        self._init_ui()
+        self.show_all()
+        self._enable_delete()
+        if actions:
+            self.set_actions(actions)
+        
+    def _init_ui(self):  
+        self.model=Gtk.ListStore(str)
+        self.view=self.ui.get_widget('actions-view')
+        self.view.set_model(self.model)
+        self.view.set_reorderable(True)
+        all_actions_model = Gtk.ListStore(str)
+        for a in actions.get_actions_list(True):
+            all_actions_model.append([a])
             
+        renderer_combo = Gtk.CellRendererCombo()
+        renderer_combo.set_property("editable", True)
+        renderer_combo.set_property("model", all_actions_model)
+        renderer_combo.set_property("text-column", 0)
+        renderer_combo.set_property("has-entry", False)
+        renderer_combo.connect("edited", self.on_action_edited)
+        
+        column=Gtk.TreeViewColumn("Actions", renderer_combo, text=0)
+        self.view.append_column(column)
+        
+        select=self.view.get_selection()
+        select.connect("changed", self.on_selection)
+        
+    def on_action_edited(self, widget, path, text):
+        self.model[path][0]=text
+    
+    def on_add(self, btn):
+        log.debug('Item added')
+        item=self.model.append([self.NOT_SELECTED])
+        self.view.get_selection().select_iter(item)
+        
+    def on_delete(self,btn):
+        
+        selection=self.view.get_selection()
+        model, item=selection.get_selected()
+        if item:
+            log.debug('Deleting Item %s', model.get_path(item).to_string())
+            model.remove(item)
+            
+    def _enable_delete(self):
+        _, iter= self.view.get_selection().get_selected()
+        status= (iter!=None)
+        self.ui.get_widget('delete-button').set_sensitive(status)
+        
+    def on_selection(self, selection):
+        self._enable_delete()
+        
+    def get_actions(self):
+        actions_list=[]
+        for row in self.model:
+            name=row[0]
+            if name and name !=self.NOT_SELECTED:
+                actions_list.append(name)
+        return actions_list
+    
+    def set_actions(self, actions_list):
+        for a in actions_list:
+            if actions.exists(a):
+                self.model.append([a])
+        
         
 class InstancesListBox(Gtk.VBox):
     UI_FILES=['items_list.ui']
@@ -276,7 +355,7 @@ class InstancesListBox(Gtk.VBox):
             name=None
         elif not path: 
             path, name= self.get_selected_item()
-        d=self.handler.create_details_dialog(path, name)
+        d=self.handler.create_details_dialog(path, name, new)
         response=d.run()
         if response==Gtk.ResponseType.OK:
             if new:

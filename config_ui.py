@@ -11,7 +11,7 @@ from gi.repository import Gtk, Gio, GLib #@UnresolvedImport
 import utils
 import actions
 from ui_base import FormDialog, FormSettingsDialog, AbstactListHandler, \
-    InstancesListBox, InstancesListDialog, Validator, UiHelper
+    InstancesListBox, InstancesListDialog, Validator, UiHelper, ActionsBox
 
 SETTINGS_ID='eu.zderadicka.thetool'
 NET_SETTINGS_ID=SETTINGS_ID+".network"
@@ -25,13 +25,17 @@ class NetworkDetailDialog(FormSettingsDialog):
                     ('nm-name', 'id', 's'),
                     ('ip-address', 'network-ip', 's'),
                     ('subnet-mask', 'network-mask', 's'))
-    def __init__(self, parent, settings, path, nm):
+    def __init__(self, parent, settings, path, nm, new):
         
         self.nm=nm
         self.path=path
         log.debug("Network config for path %s", path)
-        FormSettingsDialog.__init__(self, "Network Detail", parent, 
-                settings.get_settings_under(NET_SETTINGS_ID, path))
+        settings=settings.get_settings_under(NET_SETTINGS_ID, path)
+        FormSettingsDialog.__init__(self, "Network Detail", parent, settings, new)
+        actions=None if new else self.settings.get_unpacked('network-actions')
+        self.box=ActionsBox("Actions", actions)
+        self.ui.get_widget('actions-box').pack_start(self.box,True, True, 0)
+        
         
     def init_validations(self):
         self.add_validator('display-name', min_length=3, max_length=40)
@@ -39,9 +43,6 @@ class NetworkDetailDialog(FormSettingsDialog):
         self.add_validator('ip-address', allowed_chars='0123456789.', regexp=r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') 
         self.add_validator('subnet-mask', allowed_chars='0123456789.', regexp=r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') 
         
-    
-            
-         
     def on_get_current_net(self, btn):
         active=self.nm.get_default_connection_info()
         if active:
@@ -58,6 +59,10 @@ class NetworkDetailDialog(FormSettingsDialog):
     
     def get_path(self):
         return self.path
+    
+    def save_all(self):
+        super(NetworkDetailDialog, self).save_all()
+        self.settings.set_formatted('network-actions', self.box.get_actions(), 'as')
 
 
 class NetworksHandler(AbstactListHandler):
@@ -65,6 +70,7 @@ class NetworksHandler(AbstactListHandler):
     def __init__(self, settings, nm):
         self.settings=settings
         self.nm=nm
+        self.dirty=False
     
     def get_inital_list(self):
         nets=self.settings.get_unpacked('networks')
@@ -78,19 +84,17 @@ class NetworksHandler(AbstactListHandler):
     def get_path_base(self):
         return 'network'
     
-    def create_details_dialog(self,path, name):
-        return NetworkDetailDialog(self.get_parent_window(), self.settings, path, self.nm)    
+    def create_details_dialog(self,path, name, new):
+        return NetworkDetailDialog(self.get_parent_window(), self.settings, path, self.nm, new)    
     
     def update_settings(self):
-        nets=self.get_list()
-        self.settings.set_formatted('networks', nets, 'as')
-        log.debug("Networks changed to %s", nets)
+        self.dirty=True
     
     def update_after_added(self, path, name):
         self.update_settings()
         
     def update_after_edit(self, path, name):
-        self.settings.emit('changed', 'networks')
+        self.update_settings()
         
     def update_after_delete(self, path, name):
         self.update_settings()
@@ -117,7 +121,7 @@ class ActionsHandler(AbstactListHandler):
     def get_path_base(self):
         return 'action'
     
-    def create_details_dialog(self,path, name):
+    def create_details_dialog(self,path, name, new):
         return ActionDetailDialog(self.get_parent_window(), actions.get_action(name))    
     
     def update_after_added(self, path, name):
@@ -134,7 +138,16 @@ class ActionsDialog(InstancesListDialog):
     def __init__(self, parent):
         self.handler=ActionsHandler()
         InstancesListDialog.__init__(self, "Actions", parent, self.handler)
-        
+
+class UknownNetDialog(Gtk.Dialog):
+    def __init__(self, parent, actions): 
+        title="Actions for Uknown Net" 
+        Gtk.Dialog.__init__(self, title, parent, Gtk.DialogFlags.MODAL|Gtk.DialogFlags.DESTROY_WITH_PARENT, (Gtk.STOCK_CLOSE,Gtk.ResponseType.CLOSE))
+        self.box=ActionsBox(title, actions)
+        self.get_content_area().add(self.box)
+    def get_actions(self):
+        return self.box.get_actions()
+              
         
 class SettingsDialog(Gtk.Dialog ):
     UI_FILES=['settings.ui']
@@ -214,10 +227,20 @@ class SettingsDialog(Gtk.Dialog ):
         log.debug('Showing Networks dialog')
         d=NetworksDialog(self, self.settings, self.nm)
         d.run()
+        if d.handler.dirty:
+            nets=d.handler.get_list()
+            self.settings.set_formatted('networks', nets, 'as')
+            log.debug("Networks changed to %s", nets)
+            if hasattr(self,'nm') and self.nm:
+                self.nm.init()
+                self.nm.reconnect()
         d.destroy()
         
-    def on_show_uknown(self, btn):
-        pass
+    def on_show_unknown(self, btn):
+        d=UknownNetDialog(self, self.settings.get_unpacked('unknown-network-actions'))
+        d.run()
+        self.settings.set_formatted('unknown-network-actions', d.get_actions(), 'as')
+        d.destroy()
 
     def on_define_actions(self, btn):
         d=ActionsDialog(self) 
@@ -343,6 +366,14 @@ class ActionDetailDialog(FormDialog):
         
         
     def _load_params(self):
+        desc_label=self.ui.get_widget('description')
+        if hasattr(self.action.__class__, 'DESCRIPTION') and self.action.__class__.DESCRIPTION:
+            desc_label.set_markup(self.action.__class__.DESCRIPTION)
+            desc_label.set_visible(True)
+        else:
+            desc_label.set_markup(None)
+            desc_label.set_visible(False)
+            
         log.debug("Loading params for action %s", self.action)
         self._new_params_model()
         for params_def in self.action.definition_of_parameters:

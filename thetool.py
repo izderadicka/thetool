@@ -13,11 +13,13 @@ import logging
 log=logging.getLogger("TheTool")
 import time
 import math
-from gi.repository import Gtk, GdkPixbuf, GLib, Gdk, Notify #@UnresolvedImport
+import functools
+from collections import defaultdict
+from gi.repository import Gtk, GdkPixbuf, GLib, Gdk, Notify, GObject #@UnresolvedImport
 
 import actions
 import gdbus
-from collections import defaultdict
+import utils
 from config_ui import UiHelper, SettingsDialog, SETTINGS_ID, NET_SETTINGS_ID
 from gsettings import Settings
 _curr_dir=os.path.split(__file__)[0]
@@ -27,16 +29,18 @@ class DuplicateInstance(Exception): pass
 class NetMonitor(object):
     def __init__(self, settings, on_change_cb):
         self.on_change_cb=on_change_cb
-        self._known_nets={}
+        self._known_nets=None
+        self._known_net=None
         self.settings=settings
         self._current_net=None
         
     def init(self):
-        self._known_nets=defaultdict(lambda: dict)
+        log.debug("Loading nets NetMonitor")
+        self._known_nets=defaultdict(lambda: dict())
         for path in self.settings.get_unpacked('networks'):
             try:
                 net_details=self.settings.get_settings_under(NET_SETTINGS_ID, path)
-                self._known_nets[net_details.get_unpacked('id')][net_details.get_unpacked(path)]=\
+                self._known_nets[net_details.get_unpacked('id')][path]=\
                                                     (net_details.get_unpacked('name'),
                                                      net_details.get_unpacked('network-ip'),
                                                     net_details.get_unpacked('network-mask'))
@@ -44,13 +48,23 @@ class NetMonitor(object):
                 log.warn('Cannot get net settings for path %s', path)
                 
     def start(self):
+        log.debug('Starting NetMonitor')
         self.init()
         self.nm=gdbus.NetworkManagerMonitor()
         self.nm.add_listener('PropertiesChanged', self.on_network_changed)
-        conn=self.nm.get_default_connection_info()
-        self._current_net=conn.get('name') if conn else None
+        self._current_net=None
+        self._known_net=None
+        self.on_network_changed({'ActiveConnections':True})
+        
+    def reconnect(self, only_if_unknown=False):
+        if only_if_unknown and self.known_net:
+            return
+        log.debug("Reconnecting NetMonitor")
+        self._current_net=None
+        self.on_network_changed({'ActiveConnections':True})
    
     def stop(self):   
+        log.debug('Stoping NetMonitor')
         if hasattr(self,'nm') and self.nm:
             try:
                 self.nm.remove_listener('PropertiesChanged', self.on_network_changed)    
@@ -58,6 +72,25 @@ class NetMonitor(object):
                 log.exception('Cannot remove NM listener')
             self.nm.disconnect()
         self.nm=None    
+        self._current_net=None
+        self._known_nets=None
+        self._known_net=None
+    
+    def _match_net(self, net, name, ip, mask):
+        if net.get('name')!=name:
+            return False
+        if net.get('device_type')=='Wired' and ip and mask:
+            return utils.match_ip(net.get('ip'),ip, mask)
+        return True
+        
+    def _get_known(self, net):
+        name=net.get('name')
+        known=self._known_nets.get(name)
+        if known:
+            for path in known:
+                known_name, ip, mask= known[path]
+                if self._match_net(net, name, ip, mask):
+                    return path
         
     def on_network_changed(self, props):
         if props.has_key('ActiveConnections'):
@@ -65,19 +98,13 @@ class NetMonitor(object):
             if net:
                 log.debug('Def. Network changed to: %s',  net)
                 name=net.get('name')
-                if name == self._current_net:
+                if  self._current_net and self._match_net(net, *self._current_net):
                     return
-                self._current_net=name
-                if name in self._known_nets:
-                    
-                    log.debug("Connected to known net %s",name)
-                    known_name=name
-                    path=None
-                else:
-                    log.debug("Connected to unknown net %s", name)
-                    known_name=None
-                    path=None
-                self.on_change_cb(known_name, path)
+                self._current_net=(name, net.get('ip'), net.get('net_mask'))
+                self._known_net=self._get_known(net)
+                self.on_change_cb(self._known_net)
+    def get_default_connection_info(self):
+        return self.nm.get_default_connection_info()
     
 
 class TheTool(Gtk.Application):
@@ -107,13 +134,6 @@ class TheTool(Gtk.Application):
         self._load_actions()
         self._start_nm()
         
-        
-        self._devel_start()
-        
-    
-    
-    def _devel_start(self):
-        self.on_settings_action_activate(None)
         
     def set_tooltip(self, status, message=None): 
         tt=self.NAME+" - %s" 
@@ -186,37 +206,27 @@ class TheTool(Gtk.Application):
         
     def _start_nm(self):
         if self.settings.get_unpacked('monitor-networks'):
-            self._set_known_nets()
-            self.nm=gdbus.NetworkManagerMonitor()
-            self.nm.add_listener('PropertiesChanged', self.on_network_changed)
-            conn=self.nm.get_default_connection_info()
-            self._current_net=conn.get('name') if conn else None
+            self.nm=NetMonitor(self.settings, self.on_network_changed)
+            self.nm.start()
         else:
             if hasattr(self,'nm') and self.nm:
-                try:
-                    self.nm.remove_listener('PropertiesChanged', self.on_network_changed)    
-                except:
-                    log.exception('Cannot remove NM listener')
-                self.nm.disconnect()
+                self.nm.stop()
             self.nm=None
             
-    def _set_known_nets(self):
-        self._known_nets={}
-        for path in self.settings.get_unpacked('networks'):
-            try:
-                net_details=self.settings.get_settings_under(NET_SETTINGS_ID, path)
-                self._known_nets[net_details.get_unpacked('id')]=path
-            except:
-                log.warn('Cannot get net settings for path %s', path)
-                
-                
+    
     def _load_actions(self):
         actions.ACTIONS_FILE=self.settings.get_unpacked('actions-file')
         actions.load()
         
         
     def main(self):
-        Gtk.main()
+        GObject.threads_init()
+        Gdk.threads_init()
+        
+        try:
+            Gtk.main()
+        except KeyboardInterrupt:
+            Gtk.main_quit()
         Notify.uninit()
         
     def show_menu(self, tray_icon, button, activate_time, user_data=None):  
@@ -235,8 +245,6 @@ class TheTool(Gtk.Application):
         else:
             self.on_power_off_action(None, self.settings.get_unpacked('default-poweroff-timeout'))
             
-        
-        
         
     def _init_settings(self):
         self.settings=Settings(SETTINGS_ID, '/eu/zderadicka/thetool/')
@@ -281,7 +289,7 @@ Linux desktop rocks! (most of the time:)""")
         def turn_off():
             os.system('xset dpms force off')
             return False
-        timer_id=GLib.timeout_add(1000,turn_off)
+        timer_id=GObject.timeout_add(1000,turn_off)
     def on_power_off_action(self, item, interval):
         log.debug("Will power off in %d mins", interval)
         self.start_power_off(interval)
@@ -295,22 +303,23 @@ Linux desktop rocks! (most of the time:)""")
         log.debug( "Setting changed %s", key)
         if key=='poweroff-intervals':
             self._build_po_menu()
-        if key.startswith("icon-size-"):
+        elif key.startswith("icon-size-"):
             self.set_icon()
-        if key=="monitor-networks":
+        elif key=="monitor-networks":
             self._start_nm()
-        if key=="networks":
-            self._set_known_nets()
-        if key=="actions-file":
+        elif key=="actions-file":
             self._load_actions()
+#        elif key=="enable-notifications" and self.settings.get_unpacked('enable-notifications'):
+#            if not Notify.is_initted ():
+#                Notify.init(self.NAME)
             
             
     def start_power_off(self, mins):
         if self.timer_id:
-            GLib.source_remove(self.timer_id)
+            GObject.source_remove(self.timer_id)
         
         self.time_to_power_off=time.time()+mins*60
-        self.timer_id=GLib.timeout_add(6000, self.timeout_ticks)
+        self.timer_id=GObject.timeout_add(6000, self.timeout_ticks)
         self.set_tooltip(self.STATUS_POWER_OFF_TIMER, "in %d mins" % mins)
         self.send_notification("Will Power Off In %d Minutes"%mins)
         self.current_icon=self.icon_power_off
@@ -354,7 +363,7 @@ Linux desktop rocks! (most of the time:)""")
             
     def on_cancel_power_off_action(self, action):
         log.debug('Canceling Power Off')
-        GLib.source_remove(self.timer_id)
+        GObject.source_remove(self.timer_id)
         self._cancel_power_off()
 
     def on_tray_icon_clicked(self, icon, event):
@@ -376,24 +385,44 @@ Linux desktop rocks! (most of the time:)""")
         notification.set_image_from_pixbuf(self.icon_normal)
         notification.show()
         
-    def on_network_changed(self, props):
-        if props.has_key('ActiveConnections'):
-            net=self.nm.get_default_connection_info()
-            if net:
-                log.debug('Def. Network changed to: %s',  net)
-                name=net.get('name')
-                self._change_net(name)
-                
-    def _change_net(self, name, force_change=False):
-        if name == self._current_net:
-            return
-        self._current_net=name
-        if name in self._known_nets:
-            net_settings=self.settings.get_settings_under(NET_SETTINGS_ID, self._known_nets.get(name))
+    def on_network_changed(self, path):
+        if path:
+            net_settings=self.settings.get_settings_under(NET_SETTINGS_ID, path)
+            name=net_settings.get_unpacked('name')
             log.debug("Connected to known net %s",name)
-            self.send_notification("Connected to known network %s" % net_settings.get_unpacked('name'))
+            actions_list=net_settings.get_unpacked('network-actions')
+            if actions_list:
+                actions.ActionsRunner(actions_list, 
+                                      functools.partial(self.notify_network, name),
+                                      False).start()
+            else:
+                self.notify_network(name)                     
+            
         else:
-            log.debug("Connected to unknown net %s", name)
+            log.debug("Connected to unknown net")
+            actions_list=self.settings.get_unpacked('unknown-network-actions')
+            if actions_list:
+                actions.ActionsRunner(actions_list, 
+                                      functools.partial(self.notify_network, None),
+                                      False).start()
+            else:
+                self.notify_network(None)   
+            
+            
+    def notify_network(self, name, ok=[], failed=[]):
+        if name:
+            msg=" Network %s" %name
+        else:
+            msg="Network Unknown"
+        
+        if ok:
+            msg+=" (%s)" %', '.join(ok)
+        if failed:
+            failures=map(lambda x: str(x), failed)
+            msg+="/n<b>Errors:</b> %s" % ', '.join(failures)
+            
+        self.send_notification(msg)
+            
 if __name__=='__main__':
     op=optparse.OptionParser()
     op.add_option('-d', '--debug', action="store_true", help="Debug loggin on")
@@ -402,6 +431,7 @@ if __name__=='__main__':
         logging.basicConfig(level=logging.DEBUG)
         logging.getLogger('TheTool.GSettings').setLevel(logging.INFO)
         #logging.getLogger('gdbus').setLevel(logging.INFO)
+    actions.load_plugins()
     try:
         tool=TheTool()
     except DuplicateInstance:

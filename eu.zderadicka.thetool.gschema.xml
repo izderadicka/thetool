@@ -64,6 +64,11 @@
     	<description>List of networks that tool knows, if this network become 
     		primary active network tool can take some actions</description>
     </key>
+    <key name="unknown-network-actions" type="as">
+    	<default>[]</default>
+    	<summary>Actions for unknown network</summary>
+    	<description>Action to be taken, when computer connects to an unknown network. </description>
+    </key>
     <key name="actions-file" type="s">
     	<default>'/home/ivan/.config/thetool/actions.json'</default>
     	<summary>File with actions definitions</summary>
@@ -87,5 +92,10 @@
   		<default>''</default>
   		<summary>Network mask (optional)</summary>
   	</key>
+  	<key name="network-actions" type="as">
+    	<default>[]</default>
+    	<summary>Actions for this network</summary>
+    	<description>Action to be taken, when computer connects to this network. </description>
+    </key>
   </schema>
 </schemalist>

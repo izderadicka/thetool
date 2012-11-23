@@ -10,11 +10,34 @@ import types
 import logging
 import os
 import os.path
+import threading
+
 log=logging.getLogger('TheTool - Actions')
 
 ACTIONS_FILE=os.path.expanduser('~/.config/thetool/actions.json')
+PLUGIN_DIRS=(os.path.expanduser('~/.config/thetool/actions'),
+             os.path.join(os.path.dirname(__file__),'actions'))
 _known_actions_types={}
 _actions={}
+
+from gi.repository import GObject #@UnresolvedImport
+
+def load_plugins():
+    for folder in PLUGIN_DIRS:
+        if not os.path.exists(folder):
+            continue
+        files=os.listdir(folder)
+        for f in files:
+            _,ext=os.path.splitext(f)
+            if ext=='.py':
+                f=os.path.join(folder,f)
+                try:
+                    with file(f, 'rb') as src:
+                        exec(src.read(), globals(), globals())
+                        log.debug('Loaded plugin %s', )
+                except:
+                    log.exception("Error Loading plugin %s", f)
+                    
 
 def save():
     file_path=os.path.dirname(ACTIONS_FILE)
@@ -37,9 +60,13 @@ def load():
 def register_type(klass, name):
     _known_actions_types[name]=klass
     
-def add_action(action):
+def add_action(action, dont_save=False):
     _actions[action.name]=action
-    save()
+    if not dont_save:
+        save()
+    
+def exists(name):
+    return _actions.has_key(name)
     
 def remove_action(action, no_save=False):
     if isinstance(action, basestring):
@@ -99,8 +126,8 @@ def loads(s):
     
 class ParameterError(Exception): pass
 class Action(object):
-    ACTION_UI_FILE=None   # subclasses should define ui file for action (created in glade) 
     PARAMS_DEFINITION= None#('name' ,  True/False <Mandatory> -,  str <type - python type), ...)
+    DESCRIPTION=None
     def __init__(self, name):
         self._name=name
         self._params={}
@@ -184,7 +211,7 @@ class Action(object):
             no=('0', 'n', 'no', 'false', 'off')
             if value.lower() in yes:
                 validated_value= True
-            if value.lower() in no:
+            elif value.lower() in no:
                 validated_value= False
             else:
                 raise ParameterError('Value %s is not boolean representation' % value)
@@ -218,7 +245,7 @@ class Action(object):
         if allowed_values and  isinstance(allowed_values, (list, tuple)) and \
                type in (str, unicode, basestring, int):
             if validated_value not in allowed_values:
-                raise ParameterError('Value not in allowed values %s' % allowed_values)
+                raise ParameterError('Value not in allowed values %s' % str( allowed_values))
             
         elif allowed_values and isinstance(allowed_values, (list, tuple)) and \
                type in (list, tuple):
@@ -239,26 +266,44 @@ class Action(object):
     
     
     
-class ChangeProxyAction(Action):    
-    PARAMS_DEFINITION=(('host', True, basestring),
-                       ('port', True, int),
-                       ('protocols', False, list),
-                       ('ignore_hosts', False, basestring)
-                       )
-    
-    def execute(self):
-        print 'Bude'
+class ActionsRunner(threading.Thread):
+    def __init__(self, actions_list, finished_cb=None, cb_thread_safe=True):
+        threading.Thread.__init__(self,name="ActionsRunner")
+        self.finished_cb=finished_cb
+        self.cb_thread_safe=cb_thread_safe
+        self.actions=actions_list
+        self.finished_ok=[]
+        self.had_error=[]
+        self.setDaemon(True)
         
-register_type(ChangeProxyAction, 'Change Proxy')        
+    def run(self):
+        for a in self.actions:
+            action=get_action(a)
+            if action:
+                try:
+                    action.execute()
+                except Exception,e:
+                    log.error('Action %s has error %s', a, e)
+                    self.had_error.append((a, str(e)))
+                else:
+                    log.debug('Action %s executed ok', a)
+                    self.finished_ok.append(a)
+            else:
+                log.error("Action %s not defined", a)
+                self.had_error.append((a, 'Action not defined'))
+                
+        if self.finished_cb:
+            if self.cb_thread_safe:
+                self.finished_cb(self.finished_ok, self.had_error)
+            else:
+                def _wrapper():
+                    self.finished_cb(self.finished_ok, self.had_error)
+                    return False
+                GObject.idle_add(_wrapper)
+        
         
 def main():
-    oracle_proxy=ChangeProxyAction("Oracle proxy")
-    oracle_proxy.set_param('host', 'my.dom.com')
-    oracle_proxy.set_param('port', '10')
-    s=dumps({"my_action":oracle_proxy})
-    print oracle_proxy, s
-    o=loads(s)
-    print o
+    pass
     
     
 if __name__=='__main__':

@@ -6,6 +6,7 @@ Created on Nov 19, 2012
 import unittest
 import re
 import actions
+from actions import add_action, ActionsRunner
 
 class DummyAction(actions.Action):
     PARAMS_DEFINITION=(('string1', True, basestring),
@@ -14,12 +15,17 @@ class DummyAction(actions.Action):
                        ('int1', True, int),
                        ('list1', True, list),
                        ('bool1', False, bool),
-                       ('restricted1', True, str, ['opt1', 'opt2', 'opt3']),
+                       ('restricted1', True, str, ('opt1', 'opt2', 'opt3')),
                        ('restricted2', True, list, ['opt1', 'opt2', 'opt3']),
                        ('float1', True, float),
                        ('dict1', True, dict),
                        ('reg1', True, str, re.compile(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'))
                        )
+    def execute(self):
+        if self.get_param('bool1'):
+            print 'executed normally'
+        else:
+            raise Exception('Error')
 
 class Test(unittest.TestCase):
 
@@ -90,6 +96,35 @@ class Test(unittest.TestCase):
                 
             except actions.ParameterError:
                 pass
+            
+    def testExecution(self):
+        self.a.name="Dummy"
+        self.a.set_param('bool1', 'True')
+        add_action(self.a, True)
+        results={}
+        def cb(ok,failed):
+            results['ok']=ok
+            results['failed']=failed
+        r=ActionsRunner([self.a.name], cb)
+        r.start()
+        r.join()
+        self.assertEqual(results['ok'], ['Dummy'])
+        self.assertEqual(results['failed'], [])
+        
+        self.a.set_param('bool1','n')
+        r=ActionsRunner([self.a.name], cb)
+        r.start()
+        r.join()
+        self.assertEqual(results['ok'],[])
+        self.assertEqual(results['failed'], [('Dummy', 'Error')])
+        
+        self.a.set_param('bool1', 'True')
+        r=ActionsRunner([self.a.name, 'Neni'], cb)
+        r.start()
+        r.join()
+        self.assertEqual(results['ok'],['Dummy'])
+        self.assertEqual(results['failed'], [('Neni', 'Action not defined')])
+        
 if __name__ == "__main__":
-    import sys;sys.argv = ['', 'Test.testIncorrect2']
+    import sys;sys.argv = ['', 'Test.testExecution']
     unittest.main()
