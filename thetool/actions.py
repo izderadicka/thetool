@@ -283,7 +283,7 @@ class ActionsRunner(threading.Thread):
                 try:
                     action.execute()
                 except Exception,e:
-                    log.error('Action %s has error %s', a, e)
+                    log.exception('Action %s has error %s', a, e)
                     self.had_error.append((a, str(e)))
                 else:
                     log.debug('Action %s executed ok', a)

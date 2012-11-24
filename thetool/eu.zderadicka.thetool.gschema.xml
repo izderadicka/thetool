@@ -67,12 +67,17 @@
     <key name="unknown-network-actions" type="as">
     	<default>[]</default>
     	<summary>Actions for unknown network</summary>
-    	<description>Action to be taken, when computer connects to an unknown network. </description>
+    	<description>Actions to be taken, when computer connects to an unknown network. </description>
     </key>
     <key name="actions-file" type="s">
     	<default>'/home/ivan/.config/thetool/actions.json'</default>
     	<summary>File with actions definitions</summary>
     	<description>Files containing defined actions, serialized in JSON format.</description>
+    </key>
+     <key name="quick-actions" type="as">
+    	<default>[]</default>
+    	<summary>Quick Actions</summary>
+    	<description>Quick Actions which are accessible from tray icon popup menu</description>
     </key>
   </schema>
   <schema id="eu.zderadicka.thetool.network">
@@ -95,7 +100,7 @@
   	<key name="network-actions" type="as">
     	<default>[]</default>
     	<summary>Actions for this network</summary>
-    	<description>Action to be taken, when computer connects to this network. </description>
+    	<description>Actions to be taken, when computer connects to this network. </description>
     </key>
   </schema>
 </schemalist>

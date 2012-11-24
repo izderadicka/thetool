@@ -31,8 +31,8 @@
     <property name="margin_right">10</property>
     <property name="margin_top">10</property>
     <property name="margin_bottom">10</property>
-    <property name="row_spacing">5</property>
-    <property name="column_spacing">5</property>
+    <property name="row_spacing">10</property>
+    <property name="column_spacing">10</property>
     <child>
       <object class="GtkLabel" id="label1">
         <property name="visible">True</property>
@@ -357,7 +357,7 @@
       </object>
       <packing>
         <property name="left_attach">0</property>
-        <property name="top_attach">8</property>
+        <property name="top_attach">9</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -386,7 +386,7 @@
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="orientation">vertical</property>
-            <property name="spacing">1</property>
+            <property name="spacing">5</property>
             <child>
               <object class="GtkButton" id="configure-networks">
                 <property name="label" translatable="yes">Configure Known Networks</property>
@@ -429,7 +429,7 @@
       </object>
       <packing>
         <property name="left_attach">1</property>
-        <property name="top_attach">8</property>
+        <property name="top_attach">9</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -503,7 +503,7 @@
       </packing>
     </child>
     <child>
-      <object class="GtkButton" id="button2">
+      <object class="GtkButton" id="define-action-button">
         <property name="label" translatable="yes">Define Actions</property>
         <property name="use_action_appearance">False</property>
         <property name="visible">True</property>
@@ -515,6 +515,36 @@
       <packing>
         <property name="left_attach">1</property>
         <property name="top_attach">7</property>
+        <property name="width">1</property>
+        <property name="height">1</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="label14">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="label" translatable="yes">Quick Actions:</property>
+      </object>
+      <packing>
+        <property name="left_attach">0</property>
+        <property name="top_attach">8</property>
+        <property name="width">1</property>
+        <property name="height">1</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkButton" id="quick-actions-button">
+        <property name="label" translatable="yes">Configure Quick Actions</property>
+        <property name="use_action_appearance">False</property>
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="receives_default">True</property>
+        <property name="use_action_appearance">False</property>
+        <signal name="clicked" handler="on_quick_actions" swapped="no"/>
+      </object>
+      <packing>
+        <property name="left_attach">1</property>
+        <property name="top_attach">8</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>

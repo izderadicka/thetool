@@ -5,8 +5,8 @@ Created on Nov 19, 2012
 '''
 import unittest
 import re
-import actions
-from actions import add_action, ActionsRunner
+import thetool.actions as actions
+from thetool.actions import add_action, ActionsRunner
 
 class DummyAction(actions.Action):
     PARAMS_DEFINITION=(('string1', True, basestring),

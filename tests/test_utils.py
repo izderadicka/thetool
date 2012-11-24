@@ -4,7 +4,7 @@ Created on Nov 22, 2012
 @author: ivan
 '''
 import unittest
-from utils import *
+from thetool.utils import *
 
 class Test(unittest.TestCase):
 

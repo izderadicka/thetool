@@ -1,24 +1,39 @@
-TheTool is small tool enabling one to quickly set do some tasks (task that related to everyday usage) in Linux desktop. This tool is rebuild of older toshtool utility, which I used for years, now completely rewritten with GTK3 framework and python (using GObject Introspection in python). The tool sits in the tray and actions are just a click away.
+TheTool is a small tool enabling one to quickly do some tasks (tasks that relate to everyday usage) 
+in Linux desktop. This tool is rebuild of older toshtool utility, which I used for years, 
+now completely rewritten with GTK3 framework and python (using GObject Introspection in python). 
+The tool sits in the tray and actions are just a click away.
 
-Recently this enables this tasks:
+Recently it enables these tasks:
 
-    Immediately turn off display
-    Schedule computer suspend (shut down or hibernate) in given interval in very quick way.  Also possibility to cancel planned suspend by just one click.
-		one click proxy switching (as I connect to different networks in is bit annoying)
-    automatic detection of network and then enabling right proxy – based some advanced configuration
+    * Immediately turn off display
+    * Schedule computer suspend (shut down or hibernate) in given interval in very quick way.  Also 
+    possibility to cancel planned suspend by just one click.
+    * Automatic detection of network (based on name and subnet for wired connection) and 
+    then running some actions 
+    * Flexible system of actions - new actions can be easily written as plugins
+    * Currently actions include setting and resetting proxy
+    * Any action can be set for quick access via tray icon menu
     
-Since I’m using my computer to listen music , audio books at evening I want to sent some time-out, so computer suspends after I fall asleep.  I missed some easy tool to enable this in few clicks, so I built this one.
-
+Since I’m using my computer to listen music , audio books at evening I want to set some time-out, 
+so computer suspends after I fall asleep.  I missed some easy tool to enable this in few clicks, 
+so I built this one. Another problem was connecting with notebook to different networks, some require 
+proxy some not - automatic proxy configuration do not work well (a bit for browser, but not for other
+programs - shell, pidgin ...) so this was another function that I added to the tool.
 
 I plan also to add more features:
 
-    Power off when a  player (with DBus Interface enabled)  finish playing
-    one click disabling of screensaver ( not all video player have support for disabling screensaver)
-    any other idea for quick task that need to be accessible very quickly
+    * More actions - change any setting via GSettings, call any DBUS method, launch programs, 
+    disable/enabe ports
+    * Power off when a  player (with DBus Interface enabled)  finishes playing
+    * One click disabling of screensaver ( not all video player have support for disabling 
+    screensaver)
+    * Any other idea for quick task that need to be accessible very quickly
 
 Will see what plans I can realize.
+
+TheTool is licensed under GPL v3 - http://www.gnu.org/licenses/gpl.html
 
 Version History:
 
 0.1 - Initial version 
-0.2 - With Network changed detetection and proxies switching
+0.2 - With network changed detetection, proxies switching and flexible action system

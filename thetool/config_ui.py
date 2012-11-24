@@ -139,9 +139,8 @@ class ActionsDialog(InstancesListDialog):
         self.handler=ActionsHandler()
         InstancesListDialog.__init__(self, "Actions", parent, self.handler)
 
-class UknownNetDialog(Gtk.Dialog):
-    def __init__(self, parent, actions): 
-        title="Actions for Uknown Net" 
+class AssignActionsDialog(Gtk.Dialog):
+    def __init__(self, title, parent, actions): 
         Gtk.Dialog.__init__(self, title, parent, Gtk.DialogFlags.MODAL|Gtk.DialogFlags.DESTROY_WITH_PARENT, (Gtk.STOCK_CLOSE,Gtk.ResponseType.CLOSE))
         self.box=ActionsBox(title, actions)
         self.get_content_area().add(self.box)
@@ -237,9 +236,15 @@ class SettingsDialog(Gtk.Dialog ):
         d.destroy()
         
     def on_show_unknown(self, btn):
-        d=UknownNetDialog(self, self.settings.get_unpacked('unknown-network-actions'))
+        d=AssignActionsDialog("Actions for Unknown Net" ,self, self.settings.get_unpacked('unknown-network-actions'))
         d.run()
         self.settings.set_formatted('unknown-network-actions', d.get_actions(), 'as')
+        d.destroy()
+    
+    def on_quick_actions(self, btn):
+        d=AssignActionsDialog('Quick Actions',self, self.settings.get_unpacked('quick-actions'))
+        d.run()
+        self.settings.set_formatted('quick-actions', d.get_actions(), 'as')
         d.destroy()
 
     def on_define_actions(self, btn):
