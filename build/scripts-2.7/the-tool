@@ -1,0 +1,10 @@
+#!/usr/bin/python
+'''
+Created on Nov 24, 2012
+
+@author: ivan
+'''
+import sys
+from thetool.thetool import main
+if __name__ == '__main__':
+    main()

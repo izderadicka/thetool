@@ -1,0 +1,106 @@
+<schemalist>
+	
+	<enum id="eu.zderadicka.TheTool.PoweroffEnum">
+    <value nick="shutdown" value="1"/>
+    <value nick="suspend" value="2"/>
+    <value nick="hibernate" value="3"/>
+  </enum>
+  <schema id="eu.zderadicka.thetool" path="/eu/zderadicka/thetool/" gettext-domain="thetool">
+ 
+    <key type="b" name="enable-notifications">
+      <default>false</default>
+      <summary>Enable notifications from this tool</summary>
+      <description>If enables tool will send notifications about power down etc.</description>
+    </key>
+    <key type="i" name="notify-before-poweroff">
+    	<range min="1" max="15"/>
+    	<default>1</default>
+    	<summary>Notify x minutes before power off</summary>
+    	<description>Set when final power off notification will be send - this amount of
+    		minutes before scheduled power off</description>
+    </key>
+    <key type="i" name="default-poweroff-timeout">
+    	<range min="1" max="999"/>
+    	<default>60</default>
+    	<summary>Default Power Off Timeout</summary>
+    	<description>Poweroff will start with this timeout when tray icon is clicked</description>
+    </key>
+    <key name="icon-size-width" type="i">
+    	<range min="10" max="100"/>
+      <default>20</default>
+      <summary>Size of icon in tray</summary>
+      <description>
+        Enables to resize icon in tray
+      </description>
+    </key>
+    <key name="icon-size-height" type="i">
+    	<range min="10" max="100"/>
+      <default>20</default>
+      <summary>Size of icon in tray</summary>
+      <description>
+        Enables to resize icon in tray
+      </description>
+    </key>
+    <key name="poweroff-types" enum="eu.zderadicka.TheTool.PoweroffEnum">
+    	<default>'suspend'</default>
+    	<summary>Types of power of operations</summary>
+    	<description>Power off operation to apply - shutdown, suspend or hibernate</description>
+    </key>
+    <key name="poweroff-intervals" type="ai">
+      <default>[15,30,45,60,90,120,150,180,240]</default>
+      <summary>Intervals for power off menu</summary>
+      <description>
+        Sets intervals that will be available in power-off menu on tray icon.
+      </description>
+    </key>
+    <key name="monitor-networks" type="b">
+    	<default>false</default>
+    	<summary>Monitor Network Connections Activation</summary>
+    	<description>Monitors network connections, for configured nets provides some actions</description>
+    </key>
+    <key name="networks" type="as">
+    	<default>[]</default>
+    	<summary>List of known network</summary>
+    	<description>List of networks that tool knows, if this network become 
+    		primary active network tool can take some actions</description>
+    </key>
+    <key name="unknown-network-actions" type="as">
+    	<default>[]</default>
+    	<summary>Actions for unknown network</summary>
+    	<description>Actions to be taken, when computer connects to an unknown network. </description>
+    </key>
+    <key name="actions-file" type="s">
+    	<default>'/home/ivan/.config/thetool/actions.json'</default>
+    	<summary>File with actions definitions</summary>
+    	<description>Files containing defined actions, serialized in JSON format.</description>
+    </key>
+     <key name="quick-actions" type="as">
+    	<default>[]</default>
+    	<summary>Quick Actions</summary>
+    	<description>Quick Actions which are accessible from tray icon popup menu</description>
+    </key>
+  </schema>
+  <schema id="eu.zderadicka.thetool.network">
+  	<key name="name" type="s">
+  		<default>''</default>
+  		<summary>User given name</summary>
+  	</key>
+  	<key name="id" type="s">
+  		<default>''</default>
+  		<summary>NetworkManager id/name</summary>
+  	</key>
+  	<key name="network-ip" type="s">
+  		<default>''</default>
+  		<summary>IP of the network (optional)</summary>
+  	</key>
+  	<key name="network-mask" type="s">
+  		<default>''</default>
+  		<summary>Network mask (optional)</summary>
+  	</key>
+  	<key name="network-actions" type="as">
+    	<default>[]</default>
+    	<summary>Actions for this network</summary>
+    	<description>Actions to be taken, when computer connects to this network. </description>
+    </key>
+  </schema>
+</schemalist>
