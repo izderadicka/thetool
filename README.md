@@ -33,6 +33,15 @@ Will see what plans I can realize.
 
 TheTool is licensed under GPL v3 - http://www.gnu.org/licenses/gpl.html
 
+To install on your system run: sudo ./setup.py install and run the-tool command
+ 
+If you want to observe it first or develop, you can run from source - but you must first 
+compile GSettings schema in thetool directory:
+glib-compile-schemas --strict thetool
+./the-tool
+
+TheTool web http://zderadicka.eu/projects/python/thetool-quick-actions-for-desktop/
+
 Version History:
 
 0.1 - Initial version 
