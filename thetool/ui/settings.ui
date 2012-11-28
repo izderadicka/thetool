@@ -404,8 +404,8 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton" id="configure-uknown-networks">
-                <property name="label" translatable="yes">Configure Uknown Networks</property>
+              <object class="GtkButton" id="configure-unknown-networks">
+                <property name="label" translatable="yes">Configure Unknown Networks</property>
                 <property name="use_action_appearance">False</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>

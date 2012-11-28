@@ -38,6 +38,7 @@ To install on your system run: sudo ./setup.py install and run the-tool command
 If you want to observe it first or develop, you can run from source - but you must first 
 compile GSettings schema in thetool directory:
 glib-compile-schemas --strict thetool
+
 ./the-tool
 
 TheTool web http://zderadicka.eu/projects/python/thetool-quick-actions-for-desktop/

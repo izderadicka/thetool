@@ -3,7 +3,7 @@ Created on Nov 10, 2012
 
 @author: ivan
 '''
-__version__='0.2'
+__version__='0.3'
 
 import sys
 import os.path
@@ -18,6 +18,7 @@ from gi.repository import Gtk, GdkPixbuf, GLib, Gdk, Notify, GObject #@Unresolve
 
 import actions
 import gdbus
+import netmanager
 import utils
 from config_ui import UiHelper, SettingsDialog, SETTINGS_ID, NET_SETTINGS_ID
 from gsettings import Settings
@@ -49,7 +50,7 @@ class NetMonitor(object):
     def start(self):
         log.debug('Starting NetMonitor')
         self.init()
-        self.nm=gdbus.NetworkManagerMonitor()
+        self.nm=netmanager.NetworkManagerMonitor()
         self.nm.add_listener('PropertiesChanged', self.on_network_changed)
         self._current_net=None
         self._known_net=None
@@ -379,14 +380,8 @@ Linux desktop rocks! (most of the time:)""")
         log.debug('Powering Off Now')
         self._cancel_power_off()
         power_off_type=self.settings.get_unpacked('poweroff-types')
+        gdbus.power_off(power_off_type)
         
-        if power_off_type=='shutdown':
-            gdbus.ConsoleKit().Stop()
-        elif power_off_type=='suspend':
-            gdbus.UPower().Suspend()
-        elif power_off_type=='hibernate':
-            gdbus.UPower().Hibernate()
-            
     def on_cancel_power_off_action(self, action):
         log.debug('Canceling Power Off')
         GObject.source_remove(self.timer_id)
