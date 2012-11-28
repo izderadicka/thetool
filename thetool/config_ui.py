@@ -174,7 +174,7 @@ class SettingsDialog(Gtk.Dialog ):
                        Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('notify-before-poweroff', self.ui.get_widget('notify-before-poweroff'), 'value',
                            Gio.SettingsBindFlags.DEFAULT)
-        self.settings.bind('default-poweroff-timeout', self.ui.get_widget('default-poweroff-timeout'), 'value',
+        self.settings.bind('player-poweroff-timeout', self.ui.get_widget('player-poweroff-timeout'), 'value',
                            Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('actions-file', self.ui.get_widget('actions-file'), 'text',
                            Gio.SettingsBindFlags.DEFAULT)

@@ -19,11 +19,11 @@
     	<description>Set when final power off notification will be send - this amount of
     		minutes before scheduled power off</description>
     </key>
-    <key type="i" name="default-poweroff-timeout">
-    	<range min="1" max="999"/>
-    	<default>60</default>
-    	<summary>Default Power Off Timeout</summary>
-    	<description>Poweroff will start with this timeout when tray icon is clicked</description>
+    <key type="i" name="player-poweroff-timeout">
+    	<range min="0" max="99"/>
+    	<default>1</default>
+    	<summary>Power Off Timeout After Player Stops</summary>
+    	<description>Additional power off timeout after player stops</description>
     </key>
     <key name="icon-size-width" type="i">
     	<range min="10" max="100"/>

@@ -8,6 +8,7 @@ Recently it enables these tasks:
     * Immediately turn off display
     * Schedule computer suspend (shut down or hibernate) in given interval in very quick way.  Also 
     possibility to cancel planned suspend by just one click.
+    * Power off when a  player (with DBus MPRIS MediaPlayer2 Interface enabled)  finishes playing
     * Automatic detection of network (based on name and subnet for wired connection) and 
     then running some actions 
     * Flexible system of actions - new actions can be easily written as plugins
@@ -24,10 +25,9 @@ I plan also to add more features:
 
     * More actions - change any setting via GSettings, call any DBUS method, launch programs, 
     disable/enabe ports
-    * Power off when a  player (with DBus Interface enabled)  finishes playing
     * One click disabling of screensaver ( not all video player have support for disabling 
     screensaver)
-    * Any other idea for quick task that need to be accessible very quickly
+    * Any other idea for quick task that needs to be accessible very quickly
 
 Will see what plans I can realize.
 
@@ -47,3 +47,5 @@ Version History:
 
 0.1 - Initial version 
 0.2 - With network changed detetection, proxies switching and flexible action system
+0.3 - Added support for D-BUS MediaPlayer2 interface - now can set power-off when player stops 
+playing

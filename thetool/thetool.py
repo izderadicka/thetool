@@ -12,6 +12,7 @@ import logging
 log=logging.getLogger("TheTool")
 import time
 import math
+import numbers
 import functools
 from collections import defaultdict
 from gi.repository import Gtk, GdkPixbuf, GLib, Gdk, Notify, GObject #@UnresolvedImport
@@ -19,6 +20,7 @@ from gi.repository import Gtk, GdkPixbuf, GLib, Gdk, Notify, GObject #@Unresolve
 import actions
 import gdbus
 import netmanager
+import mplayer2
 import utils
 from config_ui import UiHelper, SettingsDialog, SETTINGS_ID, NET_SETTINGS_ID
 from gsettings import Settings
@@ -154,13 +156,19 @@ class TheTool(Gtk.Application):
         self.popup=menu_manager.get_widget('/popup')
         self._build_po_menu()
         self._build_actions_menu()
+        power_off_menu=self.menu_manager.get_widget('/popup/power_menu/').get_submenu()
+        power_off_menu.connect('show', self.on_power_off_menu_shown)
+        
         
     def _build_po_menu(self):
         po_item=self.menu_manager.get_widget('/popup/power_menu/')
         power_off_menu=po_item.get_submenu()
-        #remove default Empty child
+        #remove default Empty child and previous items
         power_off_menu.foreach(lambda x,_: power_off_menu.remove(x), None)
         intervals=self.settings.get_unpacked('poweroff-intervals')
+        item=Gtk.MenuItem()
+        item.set_related_action(self.core_actions.get_action('power_off_after_player_stops'))
+        power_off_menu.add(item)
         for interval in intervals:
             item=Gtk.MenuItem("%d mins"%interval)
             item.connect('activate',self.on_power_off_action, interval)
@@ -196,13 +204,16 @@ class TheTool(Gtk.Application):
                          self.on_settings_action_activate),
                         ('monitor_action', None, 'Turn Off Monitor Now', None, None,
                          self.on_monitor_action_activate),
-                        ('power_menu_action', None, 'Power Down In ...', None, None, None),
+                        ('power_menu_action', None, 'Power Off After ...', None, None, None),
                         ('actions_menu_action', None, 'Quick Actions ...', None, None, None),
                         ('power_off_type_action', None, 'Power Off Type', None, None, None)
                        ])
         action1=Gtk.Action('cancel_power_off_action', 'Cancel Power Down', None, None)
         action1.connect('activate', self.on_cancel_power_off_action)
         ca.add_action(action1)
+        action2=Gtk.Action('power_off_after_player_stops', "Player Stops", None, None)
+        action2.connect('activate', self.on_power_off_after_player_stops)
+        ca.add_action(action2)
         self.core_actions=ca
         
         
@@ -259,7 +270,8 @@ class TheTool(Gtk.Application):
         if self.timer_id:
             self.on_cancel_power_off_action(None)
         else:
-            self.on_power_off_action(None, self.settings.get_unpacked('default-poweroff-timeout'))
+            pass
+            #self.on_power_off_action(None, self.settings.get_unpacked('default-poweroff-timeout'))
             
         
     def _init_settings(self):
@@ -310,6 +322,30 @@ Linux desktop rocks! (most of the time:)""")
     def on_power_off_action(self, item, interval):
         log.debug("Will power off in %d mins", interval)
         self.start_power_off(interval)
+    
+    def on_power_off_after_player_stops(self, item):
+        log.debug("Will power-off when player stops")
+        player_monitor=mplayer2.PlayerMonitor(self.on_player_stopped)
+        if not player_monitor.is_active():
+            log.warn('No player is playing')
+            return
+        self._destroy_current_timer()
+        player_name=player_monitor.name
+        self._start_power_off(player_monitor, 
+                              "After Player %s Stops" % player_name, 
+                              "Will Power Off After Player %s Stops" % player_name)
+        
+    def on_player_stopped(self):
+        log.debug("Player Stopped")
+        timeout=self.settings.get_unpacked('player-poweroff-timeout')
+        if timeout:
+            self.start_power_off(timeout)
+        else:
+            self.power_off()
+    def on_power_off_menu_shown(self, item):
+        is_playing=mplayer2.get_active_player() is not None
+        self.core_actions.get_action('power_off_after_player_stops').set_sensitive(is_playing)
+        log.debug("Power-off menu shown")
         
     def on_quick_action(self, item, action):
         log.debug("Quick action %s initiated", action)
@@ -343,15 +379,23 @@ Linux desktop rocks! (most of the time:)""")
             
     def start_power_off(self, mins):
         if self.timer_id:
-            GObject.source_remove(self.timer_id)
+            self._destroy_current_timer()
         
         self.time_to_power_off=time.time()+mins*60
-        self.timer_id=GObject.timeout_add(6000, self.timeout_ticks)
-        self.set_tooltip(self.STATUS_POWER_OFF_TIMER, "in %d mins" % mins)
-        self.send_notification("Will Power Off In %d Minutes"%mins)
+        self._start_power_off(GObject.timeout_add(6000, self.timeout_ticks),
+                           "in %d mins" % mins,
+                            "Will Power Off In %d Minutes"%mins)
+        
+        
+    def _start_power_off(self, timer_object, tooltip_text, notification_text=None):
+        self.timer_id=timer_object
+        self.set_tooltip(self.STATUS_POWER_OFF_TIMER,tooltip_text)
+        if notification_text:
+            self.send_notification(notification_text)
         self.current_icon=self.icon_power_off
         self.core_actions.get_action('cancel_power_off_action').set_visible(True)
         self.set_icon()
+        
         
     def timeout_ticks(self):
         log.debug('Power off timeout running')
@@ -373,20 +417,31 @@ Linux desktop rocks! (most of the time:)""")
         self.set_tooltip(self.STATUS_IDLE)
         self.current_icon=self.icon_normal
         self.set_icon()
-        self.core_actions.get_action('cancel_power_off_action').set_visible(False)   
+        self.core_actions.get_action('cancel_power_off_action').set_visible(False)  
+        #self.core_actions.get_action('power_off_after_player_stops').set_sensitive(False) 
         self.power_off_notification_sent=False
           
     def power_off(self):
         log.debug('Powering Off Now')
+        self._destroy_current_timer()
         self._cancel_power_off()
+        mplayer2.pause_all()
         power_off_type=self.settings.get_unpacked('poweroff-types')
         gdbus.power_off(power_off_type)
         
     def on_cancel_power_off_action(self, action):
         log.debug('Canceling Power Off')
-        GObject.source_remove(self.timer_id)
+        self._destroy_current_timer()
         self._cancel_power_off()
-
+    
+    def _destroy_current_timer(self):
+        if self.timer_id and isinstance(self.timer_id, numbers.Integral):
+            #it is timer_id
+            GObject.source_remove(self.timer_id)
+        elif self.timer_id and isinstance(self.timer_id, mplayer2.PlayerMonitor):
+            self.timer_id.close()
+            
+    
     def on_tray_icon_clicked(self, icon, event):
         log.debug("Button clicked on tray icon button:%d, time: %d", event.button, event.time)
         #for now show menu also on button1

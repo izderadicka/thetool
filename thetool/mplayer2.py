@@ -7,10 +7,12 @@ import logging
 log=logging.getLogger('mplayer2')
 from gdbus import DBusProxyWrapper, list_names
 
+MPRIS_NAME='org.mpris.MediaPlayer2'
+
 def pause_all():
     names=list_names('session')
     for name in names:
-        if name.startswith('org.mpris.MediaPlayer2'):
+        if name.startswith(MPRIS_NAME):
             player=Player(name, sync_props=True)
             status=player.get_property('PlaybackStatus')
             if status=='Playing':
@@ -21,7 +23,7 @@ def get_active_player(listening=False):
     active=[]
     names=list_names('session')
     for name in names:
-        if name.startswith('org.mpris.MediaPlayer2'):
+        if name.startswith(MPRIS_NAME):
             player=Player(name, receive_signals=listening, sync_props=True)
             status=player.get_property('PlaybackStatus')
             if status=='Playing':
@@ -48,10 +50,15 @@ class PlayerMonitor(object):
     def is_active(self):
         return self.player is not None
     
+    @property
+    def name(self):
+        return self.player.bus_name[len(MPRIS_NAME)+1:] if self.player else None
+    
     def close(self):
         if self.player:
-            self.player.remove_listener('PropertiesChanged', self.on_properties_changed)
             self.player.disconnect()
+            self.player.remove_listener('PropertiesChanged', self.on_properties_changed)
+            
             
     def on_properties_changed(self, itf, props, invalidated):
         log.debug('Player properties changed %s', props)

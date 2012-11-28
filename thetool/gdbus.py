@@ -9,6 +9,7 @@ import logging
 log=logging.getLogger("gdbus")
 from gi.repository import Gio, GLib, GObject
 from collections import defaultdict
+from copy import copy
 import utils
 
 
@@ -71,7 +72,8 @@ class DBusProxyWrapper(object):
     def _receive_signal(self, proxy, sender_name, signal, params, user_data=None):
         params=params.unpack() if hasattr(params, 'unpack') else params
         log.debug('Received signal %s on object %s sender %s params %s',  signal, self.object_path, sender_name, params)
-        for l in self._listeners[signal]:
+        listeners=copy(self._listeners[signal])
+        for l in listeners:
             #todo - should call with idle? or thread save
             l(*params)
             
