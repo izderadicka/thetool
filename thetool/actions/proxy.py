@@ -10,12 +10,17 @@ class ChangeProxyAction(Action):    # @UndefinedVariable
     def execute(self):
         settings = Gio.Settings('org.gnome.system.proxy')
         protocols=self.get_param('protocols')
-        if not protocols:
-            protocols=('http', 'https', 'ftp')
-        for p in protocols:
-            psettings=settings.get_child(p)
-            psettings.set_string('host',self.get_param('host'))
-            psettings.set_int('port',self.get_param('port'))
+        all_protocols=('http', 'https', 'ftp', 'socks')
+        for p in all_protocols:
+            if p in ('http', 'https', 'ftp') and (not protocols or p in protocols ) or \
+               p == 'socks' and p in protocols:
+                psettings=settings.get_child(p)
+                psettings.set_string('host',self.get_param('host'))
+                psettings.set_int('port',self.get_param('port'))
+            else:
+                psettings=settings.get_child(p)
+                psettings.set_string('host','')
+                psettings.set_int('port',0)
         ignore=self.get_param('ignore_hosts')
         if  ignore:
             settings.set_value('ignore-hosts', GLib.Variant('as', self.get_param('ignore_hosts')))
