@@ -211,7 +211,7 @@ class Action(object):
             no=('0', 'n', 'no', 'false', 'off')
             if value.lower() in yes:
                 validated_value= True
-            elif value.lower() in no:
+            elif not value or value.lower() in no:
                 validated_value= False
             else:
                 raise ParameterError('Value %s is not boolean representation' % value)

@@ -49,3 +49,6 @@ Version History:
 0.2 - With network changed detetection, proxies switching and flexible action system
 0.3 - Added support for D-BUS MediaPlayer2 interface - now can set power-off when player stops 
 playing
+0.3.2 - small fixes
+      - added command action type
+      - new icons

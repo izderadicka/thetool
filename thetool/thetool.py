@@ -3,7 +3,7 @@ Created on Nov 10, 2012
 
 @author: ivan
 '''
-__version__='0.3.1'
+__version__='0.3.2'
 
 import sys
 import os.path
@@ -121,8 +121,8 @@ class TheTool(Gtk.Application):
             raise DuplicateInstance
         
         self._init_settings()
-        self.icon_normal=GdkPixbuf.Pixbuf.new_from_file(os.path.join(_curr_dir, 'pics', 'knife-grey.png'))
-        self.icon_power_off=GdkPixbuf.Pixbuf.new_from_file(os.path.join(_curr_dir, 'pics', 'knife-red.png'))
+        self.icon_normal=GdkPixbuf.Pixbuf.new_from_file(os.path.join(_curr_dir, 'pics', 'tools.png'))
+        self.icon_power_off=GdkPixbuf.Pixbuf.new_from_file(os.path.join(_curr_dir, 'pics', 'tools-active.png'))
         self.tray_icon=Gtk.StatusIcon()
         self.tray_icon.set_visible(True)
         self.tray_icon.set_title("TheTool")
@@ -509,6 +509,8 @@ def main(args=None):
         logging.basicConfig(level=logging.DEBUG)
         logging.getLogger('TheTool.GSettings').setLevel(logging.INFO)
         #logging.getLogger('gdbus').setLevel(logging.INFO)
+    else:
+        logging.basicConfig(level=logging.WARN)
     actions.load_plugins()
     try:
         tool=TheTool()
