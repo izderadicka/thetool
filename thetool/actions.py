@@ -34,7 +34,7 @@ def load_plugins():
                 try:
                     with file(f, 'rb') as src:
                         exec(src.read(), globals(), globals())
-                        log.debug('Loaded plugin %s', )
+                        log.debug('Loaded plugin %s',f )
                 except:
                     log.exception("Error Loading plugin %s", f)
                     

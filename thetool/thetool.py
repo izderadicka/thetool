@@ -17,6 +17,12 @@ import functools
 from collections import defaultdict
 from gi.repository import Gtk, GdkPixbuf, GLib, Gdk, Notify, GObject #@UnresolvedImport
 
+try:
+    from gi.repository import AppIndicator3  # @UnresolvedImport
+    HAS_INDICATOR=True
+except:
+    HAS_INDICATOR=False
+
 import actions
 import gdbus
 import netmanager
