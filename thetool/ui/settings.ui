@@ -1,18 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <!-- interface-requires gtk+ 3.0 -->
-  <object class="GtkAdjustment" id="icon_height">
-    <property name="lower">10</property>
-    <property name="upper">64</property>
-    <property name="step_increment">1</property>
-    <property name="page_increment">10</property>
-  </object>
-  <object class="GtkAdjustment" id="icon_width">
-    <property name="lower">10</property>
-    <property name="upper">64</property>
-    <property name="step_increment">1</property>
-    <property name="page_increment">10</property>
-  </object>
   <object class="GtkAdjustment" id="notify-before-poweroff">
     <property name="lower">1</property>
     <property name="upper">15</property>
@@ -58,84 +46,6 @@
       <packing>
         <property name="left_attach">1</property>
         <property name="top_attach">0</property>
-        <property name="width">1</property>
-        <property name="height">1</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkLabel" id="label2">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="halign">end</property>
-        <property name="label" translatable="yes">Tray Icon Size:</property>
-      </object>
-      <packing>
-        <property name="left_attach">0</property>
-        <property name="top_attach">5</property>
-        <property name="width">1</property>
-        <property name="height">1</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkBox" id="box2">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="spacing">3</property>
-        <child>
-          <object class="GtkLabel" id="label3">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="label" translatable="yes">Width:</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">0</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkSpinButton" id="spinbutton1">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="invisible_char">●</property>
-            <property name="adjustment">icon_width</property>
-            <property name="numeric">True</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">1</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkLabel" id="label4">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="label" translatable="yes">Height:</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">2</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkSpinButton" id="spinbutton2">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="invisible_char">●</property>
-            <property name="adjustment">icon_height</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">3</property>
-          </packing>
-        </child>
-      </object>
-      <packing>
-        <property name="left_attach">1</property>
-        <property name="top_attach">5</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -364,7 +274,7 @@
       </object>
       <packing>
         <property name="left_attach">0</property>
-        <property name="top_attach">9</property>
+        <property name="top_attach">8</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -436,7 +346,7 @@
       </object>
       <packing>
         <property name="left_attach">1</property>
-        <property name="top_attach">9</property>
+        <property name="top_attach">8</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -450,7 +360,7 @@
       </object>
       <packing>
         <property name="left_attach">0</property>
-        <property name="top_attach">6</property>
+        <property name="top_attach">5</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -492,7 +402,7 @@
       </object>
       <packing>
         <property name="left_attach">1</property>
-        <property name="top_attach">6</property>
+        <property name="top_attach">5</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -506,7 +416,7 @@
       </object>
       <packing>
         <property name="left_attach">0</property>
-        <property name="top_attach">7</property>
+        <property name="top_attach">6</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -523,7 +433,7 @@
       </object>
       <packing>
         <property name="left_attach">1</property>
-        <property name="top_attach">7</property>
+        <property name="top_attach">6</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -537,7 +447,7 @@
       </object>
       <packing>
         <property name="left_attach">0</property>
-        <property name="top_attach">8</property>
+        <property name="top_attach">7</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>
@@ -554,7 +464,7 @@
       </object>
       <packing>
         <property name="left_attach">1</property>
-        <property name="top_attach">8</property>
+        <property name="top_attach">7</property>
         <property name="width">1</property>
         <property name="height">1</property>
       </packing>

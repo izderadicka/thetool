@@ -25,22 +25,7 @@
     	<summary>Power Off Timeout After Player Stops</summary>
     	<description>Additional power off timeout after player stops</description>
     </key>
-    <key name="icon-size-width" type="i">
-    	<range min="10" max="100"/>
-      <default>20</default>
-      <summary>Size of icon in tray</summary>
-      <description>
-        Enables to resize icon in tray
-      </description>
-    </key>
-    <key name="icon-size-height" type="i">
-    	<range min="10" max="100"/>
-      <default>20</default>
-      <summary>Size of icon in tray</summary>
-      <description>
-        Enables to resize icon in tray
-      </description>
-    </key>
+    
     <key name="poweroff-types" enum="eu.zderadicka.TheTool.PoweroffEnum">
     	<default>'suspend'</default>
     	<summary>Types of power of operations</summary>

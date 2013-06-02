@@ -17,12 +17,6 @@ import functools
 from collections import defaultdict
 from gi.repository import Gtk, GdkPixbuf, GLib, Gdk, Notify, GObject #@UnresolvedImport
 
-try:
-    from gi.repository import AppIndicator3  # @UnresolvedImport
-    HAS_INDICATOR=True
-except:
-    HAS_INDICATOR=False
-
 import actions
 import gdbus
 import netmanager
@@ -31,6 +25,7 @@ import utils
 from config_ui import UiHelper, SettingsDialog, SETTINGS_ID, NET_SETTINGS_ID
 from gsettings import Settings
 _curr_dir=os.path.split(__file__)[0]
+import tray
 
 class DuplicateInstance(Exception): pass
 
@@ -128,15 +123,10 @@ class TheTool(Gtk.Application):
         
         self._init_settings()
         self.icon_normal=GdkPixbuf.Pixbuf.new_from_file(os.path.join(_curr_dir, 'pics', 'tools.png'))
-        self.icon_power_off=GdkPixbuf.Pixbuf.new_from_file(os.path.join(_curr_dir, 'pics', 'tools-active.png'))
-        self.tray_icon=Gtk.StatusIcon()
-        self.tray_icon.set_visible(True)
-        self.tray_icon.set_title("TheTool")
-        self.tray_icon.connect('popup-menu', self.show_menu)
-        self.tray_icon.connect('activate', self.activate)
-        #self.tray_icon.connect('button-press-event', self.on_tray_icon_clicked)
+
         self._define_actions()
         self._build_menus()
+        self.tray_icon=tray.create(self.popup, self.activate)
         self.ui=UiHelper(self)
         self._cancel_power_off()
         self._load_actions()
@@ -263,15 +253,8 @@ class TheTool(Gtk.Application):
         except KeyboardInterrupt:
             Gtk.main_quit()
         Notify.uninit()
-        
-    def show_menu(self, tray_icon, button, activate_time, user_data=None):  
-        def pos(menu, icon): 
-            p= Gtk.StatusIcon.position_menu(menu, icon)
-            return p
-        log.debug( 'Menu button=%s, time=%s', button, activate_time)
-        self.popup.popup(None, None, pos, tray_icon, button, activate_time )
-     
-    def activate(self, tray_icon, user_data=None):   
+         
+    def activate(self):   
         log.debug('Activate')
         if self.timer_id:
             self.on_cancel_power_off_action(None)
@@ -283,13 +266,7 @@ class TheTool(Gtk.Application):
     def _init_settings(self):
         self.settings=Settings(SETTINGS_ID, '/eu/zderadicka/thetool/')
         self.settings.connect("changed", self.on_settings_changed)
-        
-    def set_icon(self):
-        width,height=self.settings.get_unpacked('icon-size-width'), \
-                    self.settings.get_unpacked('icon-size-height')
-        icon=self.current_icon.scale_simple(width,height, GdkPixbuf.InterpType.NEAREST)
-        self.tray_icon.set_from_pixbuf(icon)
-        
+            
     def on_quit_action_activate(self, action):
         log.debug('Quiting')
         if hasattr(self,'open_settings') and self.open_settings:
@@ -313,12 +290,15 @@ Linux desktop rocks! (most of the time:)""")
         d.hide()
     def on_settings_action_activate(self, action):
         log.debug('Showing Settings')
-        
-        dialog=SettingsDialog(self.settings, self.power_type_actions, self.nm)
-        self.open_settings=dialog
-        dialog.run()
-        dialog.destroy()
-        self.open_settings=None
+        if hasattr(self,'open_settings') and self.open_settings:
+            self.open_settings.present()
+        else:
+            dialog=SettingsDialog(self.settings, self.power_type_actions, self.nm)
+            self.open_settings=dialog
+            log.debug('Openning dialog')
+            dialog.show()
+            log.debug('Dialog done')
+           
     def on_monitor_action_activate(self, action):
         def turn_off():
             os.system('xset dpms force off')
@@ -373,8 +353,6 @@ Linux desktop rocks! (most of the time:)""")
         log.debug( "Setting changed %s", key)
         if key=='poweroff-intervals':
             self._build_po_menu()
-        elif key.startswith("icon-size-"):
-            self.set_icon()
         elif key=="monitor-networks":
             self._start_nm()
         elif key=="actions-file":
@@ -398,9 +376,9 @@ Linux desktop rocks! (most of the time:)""")
         self.set_tooltip(self.STATUS_POWER_OFF_TIMER,tooltip_text)
         if notification_text:
             self.send_notification(notification_text)
-        self.current_icon=self.icon_power_off
+        self.tray_icon.set_attention(True)
         self.core_actions.get_action('cancel_power_off_action').set_visible(True)
-        self.set_icon()
+        
         
         
     def timeout_ticks(self):
@@ -421,8 +399,7 @@ Linux desktop rocks! (most of the time:)""")
         self.timer_id=None
         self.time_to_power_off=None
         self.set_tooltip(self.STATUS_IDLE)
-        self.current_icon=self.icon_normal
-        self.set_icon()
+        self.tray_icon.set_attention(False)
         self.core_actions.get_action('cancel_power_off_action').set_visible(False)  
         #self.core_actions.get_action('power_off_after_player_stops').set_sensitive(False) 
         self.power_off_notification_sent=False

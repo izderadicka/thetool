@@ -161,17 +161,19 @@ class SettingsDialog(Gtk.Dialog ):
         self.get_content_area().add(self.ui.get_widget(self.UI_ROOT))
         self._connect_widgets()
         self.nm=nm
-        
+        self.connect('response', self.on_close)
+        self.connect('delete-event', lambda x,y:self.hide_on_delete())
+    
+    
+    def on_close(self, dialog, resp_id, data=None):  
+        log.debug("Close settings")  
+        self.hide()
     def _connect_widgets(self): 
         self.settings.bind('enable-notifications', self.ui.get_widget('enable-notifications'), 'active', 
                       Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('monitor-networks', self.ui.get_widget('monitor-networks'), 'active', 
                       Gio.SettingsBindFlags.DEFAULT)
-        self.settings.bind('icon-size-width', self.ui.get_widget('icon_width'), 'value', 
-                       Gio.SettingsBindFlags.DEFAULT)
         
-        self.settings.bind('icon-size-height', self.ui.get_widget('icon_height'), 'value', 
-                       Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('notify-before-poweroff', self.ui.get_widget('notify-before-poweroff'), 'value',
                            Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('player-poweroff-timeout', self.ui.get_widget('player-poweroff-timeout'), 'value',
