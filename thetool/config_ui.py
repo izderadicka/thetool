@@ -164,7 +164,9 @@ class SettingsDialog(Gtk.Dialog ):
         self.connect('response', self.on_close)
         self.connect('delete-event', lambda x,y:self.hide_on_delete())
     
-    
+    def set_netmanager(self,nm):
+        self.nm=nm
+        
     def on_close(self, dialog, resp_id, data=None):  
         log.debug("Close settings")  
         self.hide()

@@ -133,14 +133,14 @@ class TheTool(Gtk.Application):
         self._start_nm()
         
         
-    def set_tooltip(self, status, message=None): 
+    def set_tooltip(self, status, message=None, time=None): 
         tt=self.NAME+" - %s" 
         if message:
             tt=tt+"- %s" 
             tt=tt% (status,message)
         else:
             tt=tt%status
-        self.tray_icon.set_tooltip_text(tt)
+        self.tray_icon.set_tooltip_text(tt, time=time)
         
         
     def _build_menus(self):    
@@ -204,7 +204,7 @@ class TheTool(Gtk.Application):
                         ('actions_menu_action', None, 'Quick Actions ...', None, None, None),
                         ('power_off_type_action', None, 'Power Off Type', None, None, None)
                        ])
-        action1=Gtk.Action('cancel_power_off_action', 'Cancel Power Down', None, None)
+        action1=Gtk.Action('cancel_power_off_action', 'Cancel Power Off', None, None)
         action1.connect('activate', self.on_cancel_power_off_action)
         ca.add_action(action1)
         action2=Gtk.Action('power_off_after_player_stops', "Player Stops", None, None)
@@ -233,6 +233,8 @@ class TheTool(Gtk.Application):
         if self.settings.get_unpacked('monitor-networks'):
             self.nm=NetMonitor(self.settings, self.on_network_changed)
             self.nm.start()
+            if hasattr(self, 'open_settings') and self.open_settings:
+                self.open_settings.set_netmanager(self.nm)
         else:
             if hasattr(self,'nm') and self.nm:
                 self.nm.stop()
@@ -294,6 +296,7 @@ Linux desktop rocks! (most of the time:)""")
             self.open_settings.present()
         else:
             dialog=SettingsDialog(self.settings, self.power_type_actions, self.nm)
+            dialog.set_icon(self.icon_normal)
             self.open_settings=dialog
             log.debug('Openning dialog')
             dialog.show()
@@ -368,12 +371,12 @@ Linux desktop rocks! (most of the time:)""")
         self.time_to_power_off=time.time()+mins*60
         self._start_power_off(GObject.timeout_add(6000, self.timeout_ticks),
                            "in %d mins" % mins,
-                            "Will Power Off In %d Minutes"%mins)
+                            "Will Power Off In %d Minutes"%mins, mins=mins)
         
         
-    def _start_power_off(self, timer_object, tooltip_text, notification_text=None):
+    def _start_power_off(self, timer_object, tooltip_text, notification_text=None, mins=None):
         self.timer_id=timer_object
-        self.set_tooltip(self.STATUS_POWER_OFF_TIMER,tooltip_text)
+        self.set_tooltip(self.STATUS_POWER_OFF_TIMER,tooltip_text, time=mins)
         if notification_text:
             self.send_notification(notification_text)
         self.tray_icon.set_attention(True)
@@ -388,7 +391,7 @@ Linux desktop rocks! (most of the time:)""")
             self.power_off()
             return False
         remaining=int(math.ceil(remaining/60))
-        self.set_tooltip(self.STATUS_POWER_OFF_TIMER, "in %d mins" % remaining)
+        self.set_tooltip(self.STATUS_POWER_OFF_TIMER, "in %d mins" % remaining, time=remaining)
         if remaining <= self.settings.get_unpacked('notify-before-poweroff') and \
             not self.power_off_notification_sent:
             self.send_notification("Last Warning - Will Power Off in %d Minutes"% remaining)

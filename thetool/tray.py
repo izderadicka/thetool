@@ -27,15 +27,20 @@ class Indicator(object):
     def __init__(self, menu):
         self.ind = AppIndicator3.Indicator.new (
                           "thetool",
-                          "emblem-generic",
+                          "",
                           AppIndicator3.IndicatorCategory.APPLICATION_STATUS)
         self.ind.set_status (AppIndicator3.IndicatorStatus.ACTIVE)
-        self.ind.set_attention_icon ("emblem-important")
+        self.ind.set_icon(os.path.join(_curr_dir, 'pics', 'tools.png'))
+        self.ind.set_attention_icon (os.path.join(_curr_dir, 'pics', 'tools-active.png'))
         self.ind.set_menu(menu)
         
 
     def set_tooltip_text(self, txt, **kwargs):
-        pass
+        if kwargs.get('time'):
+            t=str(kwargs['time'])
+            self.ind.set_label(t,t)
+        else:
+            self.ind.set_label('', '')
     
     def set_attention(self, attention):
         if attention:

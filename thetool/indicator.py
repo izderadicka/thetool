@@ -12,7 +12,7 @@ def menuitem_response(w, buf):
     print buf
 
 if __name__ == "__main__":
-    
+    id='myapp-icon'
     icon_factory=Gtk.IconFactory()
     icon_source=Gtk.IconSource()
     f=os.path.join(_curr_dir, 'pics', 'tools.png')
@@ -20,15 +20,21 @@ if __name__ == "__main__":
         raise Exception('Image %s missing'%f)
     icon_source.set_filename(f)
     icon_source.set_size_wildcarded(True)
+    icon_source.set_state_wildcarded(True)
+    icon_source.set_icon_name(id)
     icon_set=Gtk.IconSet()
     icon_set.add_source(icon_source)
-    icon_factory.add('myapp-icon', icon_set)
+    icon_factory.add(id, icon_set)
     icon_factory.add_default()
+    
+    #test
+    img=Gtk.Image.new_from_stock(id,22)
     
     ind = appindicator.Indicator.new (
                           "example-simple-client",
-                          "emblem-generic",
+                          id,
                           appindicator.IndicatorCategory.APPLICATION_STATUS)
+    ind.set_icon(f)
     ind.set_status (appindicator.IndicatorStatus.ACTIVE)
     ind.set_attention_icon ("indicator-messages-new")
     ind.set_label("test", "test")
