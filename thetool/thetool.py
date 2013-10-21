@@ -3,7 +3,7 @@ Created on Nov 10, 2012
 
 @author: ivan
 '''
-__version__='0.3.2'
+__version__='0.3.3'
 
 import sys
 import os.path

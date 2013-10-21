@@ -52,3 +52,5 @@ playing
 0.3.2 - small fixes
       - added command action type
       - new icons
+0.3.3 - small fixes
+      - added support for indicator - so it now work with Unity
