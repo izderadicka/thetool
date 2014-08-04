@@ -17,6 +17,7 @@ class my_install(install):
     def post_install(self):
         print "Running post-install"
         shutil.copy('thetool/eu.zderadicka.thetool.gschema.xml', '/usr/share/glib-2.0/schemas')
+        os.chmod('/usr/share/glib-2.0/schemas/eu.zderadicka.thetool.gschema.xml', 0O644) #assure it's
         ret=os.system(' glib-compile-schemas /usr/share/glib-2.0/schemas/')
         if ret!=0:
             raise ('Compilation of schemas failed')
